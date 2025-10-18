@@ -7,17 +7,17 @@ import {
   Pin,
   TextAlignStart,
 } from "lucide-react";
-import { useState } from "react";
+import { useActive } from "../hooks/useActive";
 
 export default function Sidebar() {
-  const [activeTab, setActiveTab] = useState("house");
+  const [activeTab, setActiveTab] = useActive("house");
 
   const tabs = [
     { id: 1, name: "house", icon: <House size={24} /> },
     { id: 2, name: "search", icon: <Search size={24} /> },
     { id: 3, name: "plus", icon: <Plus size={24} /> },
-    { id: 4, name: "heart", icon: <Heart size={24} /> },
-    { id: 5, name: "user", icon: <User size={24} /> },
+    { id: 4, name: "activity", icon: <Heart size={24} /> },
+    { id: 5, name: "profile", icon: <User size={24} /> },
   ];
 
   return (

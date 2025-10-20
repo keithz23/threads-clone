@@ -1,7 +1,11 @@
-import { useState } from "react";
+import { create } from "zustand";
 
-export const useActive = (initialTab: string = "house") => {
-  const [activeTab, setActiveTab] = useState(initialTab);
-
-  return [activeTab, setActiveTab] as const;
+type ActiveStore = {
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
 };
+
+export const useActive = create<ActiveStore>((set) => ({
+  activeTab: "home",
+  setActiveTab: (tab) => set({ activeTab: tab }),
+}));

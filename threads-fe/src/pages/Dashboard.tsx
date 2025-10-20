@@ -6,14 +6,13 @@ import Activity from "./Activity";
 import Profile from "./Profile";
 import { useActive } from "../hooks/useActive";
 
-type TabKey = "house" | "search" | "activity" | "profile";
+type TabKey = "home" | "search" | "activity" | "profile";
 
 export default function Dashboard() {
-  const [activeTabRaw] = useActive();
-  const activeTab = activeTabRaw as TabKey;
+  const activeTab = useActive((s) => s.activeTab) as TabKey;
 
   const tabContent: Record<TabKey, JSX.Element> = {
-    house: <Home />,
+    home: <Home />,
     search: <Search />,
     activity: <Activity />,
     profile: <Profile />,
@@ -30,7 +29,9 @@ export default function Dashboard() {
       <main className="col-span-1 flex flex-col h-screen md:h-screen overflow-hidden">
         <div className="w-full p-4 flex-shrink-0 hidden md:flex">
           <div className="flex items-center justify-center w-full">
-            <span className="font-semibold text-xl">Home</span>
+            <span className="font-semibold text-xl">
+              {activeTab.charAt(0).toLocaleUpperCase() + activeTab.slice(1)}
+            </span>
           </div>
         </div>
 

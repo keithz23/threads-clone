@@ -10,10 +10,11 @@ import {
 import { useActive } from "../hooks/useActive";
 
 export default function Sidebar() {
-  const [activeTab, setActiveTab] = useActive("house");
+  const activeTab = useActive((s) => s.activeTab);
+  const setActiveTab = useActive((s) => s.setActiveTab);
 
   const tabs = [
-    { id: 1, name: "house", icon: <House size={24} /> },
+    { id: 1, name: "home", icon: <House size={24} /> },
     { id: 2, name: "search", icon: <Search size={24} /> },
     { id: 3, name: "plus", icon: <Plus size={24} /> },
     { id: 4, name: "activity", icon: <Heart size={24} /> },
@@ -90,8 +91,6 @@ export default function Sidebar() {
       bg-gradient-to-r from-white/70 via-transparent to-white/70
     "
         />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-black/10" />
-
         <div className="relative h-full flex items-center justify-center px-4 pt-[env(safe-area-inset-top)]">
           <div className="h-7 w-7 text-black" aria-label="Threads logo">
             <svg

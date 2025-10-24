@@ -44,9 +44,6 @@ import { CustomThrottlerGuard } from './common/guards/throttle.guard';
       },
     }),
 
-    // Database
-    // MongooseModule.forRoot(process.env.MONGODB_URI),
-
     // Redis Cache
     CacheModule,
 

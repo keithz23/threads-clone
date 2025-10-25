@@ -5,7 +5,7 @@ export default registerAs('config', () => ({
   nodeEnv: process.env.NODE_ENV || 'development',
 
   database: {
-    url: process.env.DATABASE_URL,
+    url: process.env.POSTGRES_URL,
   },
 
   redis: {

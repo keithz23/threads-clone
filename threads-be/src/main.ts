@@ -10,6 +10,7 @@ import * as compression from 'compression';
 import helmet from 'helmet';
 import { ConfigService } from '@nestjs/config';
 import { setupSwagger } from './config/swagger.config';
+import * as cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -21,6 +22,9 @@ async function bootstrap() {
     origin: configService.get('config.cors.origin'),
     credentials: true,
   });
+
+  // Cookie parser
+  app.use(cookieParser());
 
   // Compression
   app.use(compression());

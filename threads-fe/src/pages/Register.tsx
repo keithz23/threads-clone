@@ -1,35 +1,34 @@
 import { useForm } from "react-hook-form";
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useSearchParams,
-} from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import banner from "../assets/banner.webp";
 import { ChevronRight } from "lucide-react";
-import type { LoginDto } from "../interfaces/auth/login.interface";
 import { useAuth } from "../hooks/useAuth";
+import type { RegisterDto } from "../interfaces/auth/register.interface";
 
-export default function Login() {
-  const { login } = useAuth();
+export default function Register() {
+  const { signup } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [searchParams] = useSearchParams();
-
   const redirect = searchParams.get("redirect") || "/";
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<LoginDto>({
-    defaultValues: { identifier: "", password: "" },
+  } = useForm<RegisterDto>({
+    defaultValues: {
+      username: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      displayName: "",
+    },
     mode: "onSubmit",
   });
 
-  const onSubmit = async (data: LoginDto) => {
+  const onSubmit = async (data: RegisterDto) => {
     try {
-      await login.mutateAsync({ loginDto: data });
+      await signup.mutateAsync({ registerDto: data });
       navigate(redirect, { replace: true });
     } catch (e: any) {
       const raw =
@@ -43,12 +42,8 @@ export default function Login() {
 
   const loginWithGoogle = () => {
     const base = import.meta.env.VITE_API_URL || "http://localhost:3000";
-    window.location.href = `${base}/auth/google?redirect=${encodeURIComponent(
-      redirect
-    )}`;
+    window.location.href = `${base}/auth/google`;
   };
-
-  const toPath = location.pathname + location.search + location.hash;
 
   return (
     <div className="w-full">
@@ -69,33 +64,77 @@ export default function Login() {
 
       <div className="mx-auto max-w-md px-4">
         <h1 className="font-semibold text-lg text-center">
-          Log in with your Threads account
+          Register your Threads account
         </h1>
 
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          {/* Identifier */}
           <div className="m-3">
             <input
               type="text"
               className={`w-full px-3 py-4 border rounded-xl bg-gray-100 focus:outline-gray-200 ${
-                errors.identifier ? "border-red-400" : "border-gray-100"
+                errors.username ? "border-red-400" : "border-gray-100"
               }`}
-              placeholder="Username or email"
-              {...register("identifier", {
-                required: "Username or email is required",
+              placeholder="Username"
+              {...register("username", {
+                required: "Username is required",
                 minLength: { value: 3, message: "At least 3 characters" },
               })}
               autoComplete="username"
-              aria-invalid={!!errors.identifier}
+              aria-invalid={!!errors.username}
             />
-            {errors.identifier && (
+            {errors.username && (
               <p className="mt-1 text-sm text-red-500">
-                {errors.identifier.message}
+                {errors.username.message}
               </p>
             )}
           </div>
 
-          {/* Password + Forgot */}
+          <div className="m-3">
+            <input
+              type="text"
+              className={`w-full px-3 py-4 border rounded-xl bg-gray-100 focus:outline-gray-200 ${
+                errors.displayName ? "border-red-400" : "border-gray-100"
+              }`}
+              placeholder="Display name"
+              {...register("displayName", {
+                required: "Display is required",
+                minLength: { value: 3, message: "At least 3 characters" },
+              })}
+              autoComplete="displayName"
+              aria-invalid={!!errors.displayName}
+            />
+            {errors.displayName && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.displayName.message}
+              </p>
+            )}
+          </div>
+
+          <div className="m-3">
+            <input
+              type="email"
+              className={`w-full px-3 py-4 border rounded-xl bg-gray-100 focus:outline-gray-200 ${
+                errors.email ? "border-red-400" : "border-gray-100"
+              }`}
+              placeholder="Email"
+              {...register("email", {
+                required: "Email is required",
+                pattern: {
+                  value:
+                    /^(?!.*\.\.)(?!.*\.$)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,63}$/i,
+                  message: "Email invalid",
+                },
+              })}
+              autoComplete="email"
+              aria-invalid={!!errors.email}
+            />
+            {errors.email && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.email.message}
+              </p>
+            )}
+          </div>
+
           <div className="m-3">
             <input
               type="password"
@@ -110,54 +149,60 @@ export default function Login() {
               autoComplete="current-password"
               aria-invalid={!!errors.password}
             />
-            <div className="mt-1 flex items-center justify-between">
-              {errors.password ? (
-                <p className="text-sm text-red-500">
-                  {errors.password.message}
-                </p>
-              ) : (
-                <span />
-              )}
-              <Link
-                tabIndex={-1}
-                to={`/forgot?redirect=${encodeURIComponent(toPath)}`}
-                className="text-sm text-gray-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-black/30 rounded px-1"
-                aria-label="Forgot your password? Reset it"
-              >
-                Forgot password?
-              </Link>
-            </div>
+            {errors.password && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.password.message}
+              </p>
+            )}
           </div>
 
-          {/* Submit */}
+          <div className="m-3">
+            <input
+              type="password"
+              className={`w-full px-3 py-4 border rounded-xl bg-gray-100 focus:outline-gray-200 ${
+                errors.confirmPassword ? "border-red-400" : "border-gray-100"
+              }`}
+              placeholder="Confirm password"
+              {...register("confirmPassword", {
+                required: "Confirm password is required",
+                minLength: { value: 6, message: "At least 6 characters" },
+              })}
+              autoComplete="confirm-password"
+              aria-invalid={!!errors.confirmPassword}
+            />
+            {errors.confirmPassword && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.confirmPassword.message}
+              </p>
+            )}
+          </div>
+
           <div className="m-3">
             <button
               type="submit"
               disabled={isSubmitting}
               className="w-full px-3 py-4 border border-black rounded-xl bg-black text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? "Signing in..." : "Login"}
+              {isSubmitting ? "Signing up..." : "Sign Up"}
             </button>
           </div>
 
           <div className="m-3">
-            <div className="flex items-center justify-between text-sm">
-              <Link
-                to={`/register?redirect=${encodeURIComponent(redirect)}`}
-                className="text-gray-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-black/30 rounded"
-              >
-                Don’t have an account?{" "}
-                <span className="font-medium">Sign up</span>
-              </Link>
-            </div>
+            <Link
+              to={`/login?redirect=${encodeURIComponent(redirect)}`}
+              className="text-gray-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-black/30 rounded"
+            >
+              Don’t have an account?{" "}
+              <span className="font-medium">Sign up</span>
+            </Link>
           </div>
         </form>
 
         {/* Divider */}
         <div className="m-3 flex items-center justify-center gap-4">
-          <div className="border border-gray-400 w-8" />
+          <div className="border border-gray-400 w-8"></div>
           <div className="text-gray-400">or</div>
-          <div className="border border-gray-400 w-8" />
+          <div className="border border-gray-400 w-8"></div>
         </div>
 
         {/* Login with Google */}

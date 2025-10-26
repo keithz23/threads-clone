@@ -5,5 +5,6 @@ export const Auth = {
   LOGOUT_ALL: "/auth/signout-all",
   FORGOT: "/auth/forgot",
   CHANGE: "/auth/change-password",
+  REFRESH: "/auth/refresh",
   ME: "/auth/me",
 };

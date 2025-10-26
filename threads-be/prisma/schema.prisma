@@ -1,15 +1,444 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String?  @map("display_name")
+  bio          String?  @db.Text // Changed to Text for longer bios
+  avatarUrl    String?  @map("avatar_url")
+  coverUrl     String?  @map("cover_url") //Cover photo like Threads
+  website      String? //User website
+  location     String? //User location
+  verified     Boolean  @default(false)
+  isPrivate    Boolean  @default(false) @map("is_private") //Private account
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Counters (denormalized for performance)
+  followersCount Int @default(0) @map("followers_count")
+  followingCount Int @default(0) @map("following_count")
+  postsCount     Int @default(0) @map("posts_count")
+
+  // Relations
+  posts              Post[]
+  likes              Like[]
+  reposts            Repost[]
+  bookmarks          Bookmark[]
+  refreshTokens      RefreshToken[]
+  followers          Follow[]                  @relation("UserFollowers")
+  following          Follow[]                  @relation("UserFollowing")
+  followRequests     FollowRequest[]           @relation("FollowRequestReceiver")
+  sentFollowRequests FollowRequest[]           @relation("FollowRequestSender")
+  notifications      Notification[]            @relation("NotificationRecipient")
+  actorNotifications Notification[]            @relation("NotificationActor")
+  blocking           Block[]                   @relation("Blocker")
+  blockedBy          Block[]                   @relation("Blocked")
+  muting             Mute[]                    @relation("Muter")
+  mutedBy            Mute[]                    @relation("Muted")
+  conversations      ConversationParticipant[]
+  messages           Message[]
+  reports            Report[]                  @relation("Reporter")
+  reportedContent    Report[]                  @relation("ReportedUser")
+
+  @@index([username])
+  @@index([email])
+  @@index([createdAt(sort: Desc)])
+  @@map("users")
+}
+
+model Post {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  content       String   @db.Text
+  parentPostId  String?  @map("parent_post_id")
+  rootPostId    String?  @map("root_post_id")
+  replyCount    Int      @default(0) @map("reply_count")
+  likeCount     Int      @default(0) @map("like_count")
+  repostCount   Int      @default(0) @map("repost_count")
+  bookmarkCount Int      @default(0) @map("bookmark_count")
+  viewCount     Int      @default(0) @map("view_count") //Track views
+  isDeleted     Boolean  @default(false) @map("is_deleted")
+  isPinned      Boolean  @default(false) @map("is_pinned") //Pin posts
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentPost    Post?          @relation("PostReplies", fields: [parentPostId], references: [id], onDelete: Cascade)
+  replies       Post[]         @relation("PostReplies")
+  rootPost      Post?          @relation("ThreadRoot", fields: [rootPostId], references: [id], onDelete: Cascade)
+  thread        Post[]         @relation("ThreadRoot")
+  media         PostMedia[]
+  likes         Like[]
+  reposts       Repost[]
+  bookmarks     Bookmark[]
+  mentions      Mention[] //Track mentions
+  hashtags      PostHashtag[] //Track hashtags
+  notifications Notification[]
+  reports       Report[]
+
+  @@index([userId])
+  @@index([parentPostId])
+  @@index([rootPostId])
+  @@index([createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, isPinned]) //For pinned posts
+  @@map("posts")
+}
+
+model PostMedia {
+  id           String    @id @default(cuid())
+  postId       String    @map("post_id")
+  mediaUrl     String    @map("media_url")
+  thumbnailUrl String?   @map("thumbnail_url")
+  mediaType    MediaType @map("media_type")
+  width        Int? //Image/video dimensions
+  height       Int? //
+  duration     Int? //Video duration in seconds
+  fileSize     Int?      @map("file_size") //File size in bytes
+  orderIndex   Int       @map("order_index")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@map("post_media")
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  follower  User @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@index([followingId, createdAt(sort: Desc)])
+  @@map("follows")
+}
+
+//Follow requests for private accounts
+model FollowRequest {
+  id          String              @id @default(cuid())
+  senderId    String              @map("sender_id")
+  receiverId  String              @map("receiver_id")
+  status      FollowRequestStatus @default(PENDING)
+  createdAt   DateTime            @default(now()) @map("created_at")
+  respondedAt DateTime?           @map("responded_at")
+
+  sender   User @relation("FollowRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("FollowRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId, status])
+  @@index([senderId])
+  @@map("follow_requests")
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  postId    String   @map("post_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId])
+  @@index([userId])
+  @@index([postId, createdAt(sort: Desc)])
+  @@map("likes")
+}
+
+model Repost {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  postId    String   @map("post_id")
+  comment   String?  @db.Text //Quote repost with comment
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId])
+  @@index([userId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("reposts")
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  postId    String   @map("post_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([postId])
+  @@map("bookmarks")
+}
+
+model Mention {
+  id        String   @id @default(cuid())
+  postId    String   @map("post_id")
+  username  String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([username])
+  @@map("mentions")
+}
+
+// NEW: Hashtags
+model Hashtag {
+  id        String        @id @default(cuid())
+  name      String        @unique
+  postCount Int           @default(0) @map("post_count")
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+  posts     PostHashtag[]
+
+  @@index([name])
+  @@index([postCount(sort: Desc)]) // For trending hashtags
+  @@map("hashtags")
+}
+
+model PostHashtag {
+  id        String   @id @default(cuid())
+  postId    String   @map("post_id")
+  hashtagId String   @map("hashtag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  hashtag Hashtag @relation(fields: [hashtagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, hashtagId])
+  @@index([hashtagId])
+  @@index([postId])
+  @@map("post_hashtags")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String           @map("user_id")
+  actorId   String           @map("actor_id")
+  type      NotificationType
+  postId    String?          @map("post_id")
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  user  User  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor User  @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  post  Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([actorId])
+  @@map("notifications")
+}
+
+model Block {
+  id        String   @id @default(cuid())
+  blockerId String   @map("blocker_id")
+  blockedId String   @map("blocked_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+  @@map("blocks")
+}
+
+model Mute {
+  id        String   @id @default(cuid())
+  muterId   String   @map("muter_id")
+  mutedId   String   @map("muted_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  muter User @relation("Muter", fields: [muterId], references: [id], onDelete: Cascade)
+  muted User @relation("Muted", fields: [mutedId], references: [id], onDelete: Cascade)
+
+  @@unique([muterId, mutedId])
+  @@index([muterId])
+  @@index([mutedId])
+  @@map("mutes")
+}
+
+model Conversation {
+  id            String    @id @default(cuid())
+  isGroup       Boolean   @default(false) @map("is_group")
+  groupName     String?   @map("group_name")
+  groupAvatar   String?   @map("group_avatar")
+  lastMessageAt DateTime? @map("last_message_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([lastMessageAt(sort: Desc)])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String    @id @default(cuid())
+  conversationId String    @map("conversation_id")
+  userId         String    @map("user_id")
+  lastReadAt     DateTime? @map("last_read_at")
+  isAdmin        Boolean   @default(false) @map("is_admin")
+  joinedAt       DateTime  @default(now()) @map("joined_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@index([conversationId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String      @map("conversation_id")
+  senderId       String      @map("sender_id")
+  content        String?     @db.Text
+  messageType    MessageType @default(TEXT) @map("message_type")
+  mediaUrl       String?     @map("media_url")
+  replyToId      String?     @map("reply_to_id") //Reply to message
+  isDeleted      Boolean     @default(false) @map("is_deleted")
+  isEdited       Boolean     @default(false) @map("is_edited")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo      Message?     @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies      Message[]    @relation("MessageReplies")
+
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@index([senderId])
+  @@index([replyToId])
+  @@map("messages")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  userAgent String?  @map("user_agent")
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  reporterId String       @map("reporter_id")
+  postId     String?      @map("post_id")
+  userId     String?      @map("user_id")
+  reason     ReportReason
+  details    String?      @db.Text
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  reporter User  @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  post     Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user     User? @relation("ReportedUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([reporterId])
+  @@index([postId])
+  @@index([userId])
+  @@map("reports")
+}
+
+// ============= ENUMS =============
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  GIF
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  POST_SHARE
+  GIF
+}
+
+enum NotificationType {
+  LIKE
+  REPLY
+  FOLLOW
+  MENTION
+  REPOST
+  MESSAGE
+  FOLLOW_REQUEST
+}
+
+enum FollowRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  HATE_SPEECH
+  VIOLENCE
+  NUDITY
+  FALSE_INFORMATION
+  IMPERSONATION
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
 }

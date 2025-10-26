@@ -2,6 +2,7 @@ export const ERROR_MESSAGES = {
   // Auth
   INVALID_CREDENTIALS: 'Invalid email or password',
   EMAIL_ALREADY_EXISTS: 'Email already exists',
+  USERNAME_ALREADY_EXISTS: 'Username already exists',
   UNAUTHORIZED: 'Unauthorized access',
   TOKEN_EXPIRED: 'Token has expired',
   INVALID_TOKEN: 'Invalid token',

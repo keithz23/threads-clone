@@ -29,6 +29,9 @@ import { TasksModule } from './tasks/tasks.module';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { CustomThrottlerGuard } from './common/guards/throttle.guard';
+import { FollowsModule } from './modules/follows/follows.module';
+import { RepostsModule } from './modules/reposts/reposts.module';
+import { BlocksModule } from './modules/blocks/blocks.module';
 
 @Module({
   imports: [
@@ -85,6 +88,9 @@ import { CustomThrottlerGuard } from './common/guards/throttle.guard';
     SearchModule,
     FeedModule,
     TasksModule,
+    FollowsModule,
+    RepostsModule,
+    BlocksModule,
   ],
   providers: [
     // Global guards

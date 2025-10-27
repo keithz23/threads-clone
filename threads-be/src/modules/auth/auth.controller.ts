@@ -26,19 +26,21 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { CheckUsernameDto } from './dto/check-username.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Request, Response } from 'express';
+import { MailService } from 'src/mail/mail.service';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly mailService: MailService,
+  ) {}
 
   // ============= PUBLIC ROUTES =============
   @Public()
@@ -74,6 +76,11 @@ export class AuthController {
   ) {
     const result = await this.authService.login(loginDto, ipAddress, userAgent);
 
+    await this.mailService.sendVerifyEmail(
+      result.user.email,
+      result.accessToken,
+    );
+
     response.cookie('accessToken', result.accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production', //Https only in production
@@ -106,10 +113,10 @@ export class AuthController {
   })
   @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
   async refresh(
-    @Body() refreshTokenDto: RefreshTokenDto,
-    @Res() response: Response,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
   ) {
-    const refreshToken = response.cookie['refreshToken'];
+    const refreshToken = request.cookies?.refreshToken;
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token not found');
     }

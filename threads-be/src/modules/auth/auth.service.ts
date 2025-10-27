@@ -1,6 +1,5 @@
 import {
   Injectable,
-  BadRequestException,
   UnauthorizedException,
   ConflictException,
   NotFoundException,
@@ -321,13 +320,13 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get('JWT_SECRET'),
-      expiresIn: this.configService.get('JWT_EXPIRES_IN', '15m'),
+      secret: this.configService.get('config.jwt.seccret'),
+      expiresIn: this.configService.get('config.jwt.expiresIn', '15m'),
     });
 
     const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.get('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d'),
+      secret: this.configService.get('config.jwt.refreshSecret'),
+      expiresIn: this.configService.get('config.jwt.refreshExpiresIn', '7d'),
     });
 
     // Calculate expiry date

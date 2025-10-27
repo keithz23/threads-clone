@@ -1,5 +1,5 @@
-import axios from "axios";
-import { queryClient } from "../queryClient";
+import axios, { AxiosError } from "axios";
+import type { AxiosRequestConfig } from "axios";
 import { Auth } from "../../constants/auth/auth.constant";
 
 const API = import.meta.env.DEV
@@ -11,65 +11,67 @@ export const instance = axios.create({
   withCredentials: true,
 });
 
-let isRefreshing = false;
-let failedQueue: any[] = [];
-
-const processQueue = (error: any, token: string | null = null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
-  failedQueue = [];
+let isRefreshing = false as boolean;
+type Queued = {
+  resolve: (v?: any) => void;
+  reject: (e: any) => void;
+  config: AxiosRequestConfig;
 };
+let queue: Queued[] = [];
+
+function drainQueue(error: any = null) {
+  queue.forEach(({ reject, resolve, config }) =>
+    error ? reject(error) : resolve(config)
+  );
+  queue = [];
+}
+
+function isAuthRefreshUrl(url?: string) {
+  return !!url && url.includes(Auth.REFRESH);
+}
+function isPublicAuthUrl(url?: string) {
+  if (!url) return false;
+  return url.includes(Auth.LOGIN) || url.includes(Auth.REGISTER);
+}
 
 instance.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+  (res) => res,
+  async (error: AxiosError) => {
+    const original = error.config as AxiosRequestConfig & { _retry?: boolean };
 
-    if (error?.response?.status !== 401) {
+    const status = error.response?.status;
+    const url = original?.url || "";
+
+    if (status !== 401) return Promise.reject(error);
+
+    if (original._retry || isAuthRefreshUrl(url) || isPublicAuthUrl(url)) {
       return Promise.reject(error);
     }
 
-    const isAuthEndpoint =
-      originalRequest.url?.includes("/auth/refresh") ||
-      originalRequest.url?.includes("/auth/login") ||
-      originalRequest.url?.includes("/auth/register") ||
-      originalRequest.url?.includes("/auth/me");
-
-    if (isAuthEndpoint || originalRequest._retry) {
-      queryClient.setQueryData(["me"], null);
-      return Promise.reject(error);
-    }
-
-    originalRequest._retry = true;
+    original._retry = true;
 
     if (isRefreshing) {
       return new Promise((resolve, reject) => {
-        failedQueue.push({ resolve, reject });
-      })
-        .then(() => instance(originalRequest))
-        .catch((err) => Promise.reject(err));
+        queue.push({
+          resolve: (cfg) => resolve(instance(cfg || original)),
+          reject,
+          config: original,
+        });
+      });
     }
 
     isRefreshing = true;
-
     try {
       await instance.post(Auth.REFRESH);
 
-      processQueue(null);
       isRefreshing = false;
-
-      return instance(originalRequest);
-    } catch (refreshError) {
-      processQueue(refreshError, null);
+      drainQueue();
+      return instance(original);
+    } catch (e: any) {
       isRefreshing = false;
-      queryClient.setQueryData(["me"], null);
+      drainQueue(e);
 
-      return Promise.reject(refreshError);
+      return Promise.reject(e);
     }
   }
 );

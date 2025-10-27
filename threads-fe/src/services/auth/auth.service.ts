@@ -25,6 +25,10 @@ export const AuthService = {
     return instance.post(Auth.LOGOUT, {});
   },
 
+  refresh: () => {
+    return instance.post(Auth.REFRESH, {});
+  },
+
   me: () => {
     return instance.get(Auth.ME);
   },

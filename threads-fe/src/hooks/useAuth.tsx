@@ -3,6 +3,8 @@ import toast from "react-hot-toast";
 import { AuthService } from "../services/auth/auth.service";
 import type { LoginDto } from "../interfaces/auth/login.interface";
 import type { RegisterDto } from "../interfaces/auth/register.interface";
+import type { ForgotPasswordDto } from "../interfaces/auth/forgot-password.interface";
+import type { ResetPasswordDto } from "../interfaces/auth/reset-password.interface";
 
 function extractErrMsg(err: unknown): string {
   const anyErr = err as any;
@@ -82,6 +84,46 @@ export function useAuth() {
     },
   });
 
+  const forgot = useMutation({
+    mutationFn: async ({
+      forgotPasswordDto,
+    }: {
+      forgotPasswordDto: ForgotPasswordDto;
+    }) => {
+      return AuthService.forgotPassword(forgotPasswordDto);
+    },
+    onSuccess: async () => {
+      toast.dismiss();
+      await qc.invalidateQueries({ queryKey: ["me"] });
+      toast.success(
+        "We’ve sent you a password reset email. Please check your inbox (and spam folder)"
+      );
+    },
+    onError: (err) => {
+      toast.dismiss();
+      toast.error(extractErrMsg(err));
+    },
+  });
+
+  const reset = useMutation({
+    mutationFn: ({
+      resetPasswordDto,
+    }: {
+      resetPasswordDto: ResetPasswordDto;
+    }) => AuthService.resetPassword(resetPasswordDto),
+    onSuccess: async () => {
+      toast.dismiss();
+      await qc.invalidateQueries({ queryKey: ["me"] });
+      toast.success(
+        "Your password was reset successfully. Please log in again."
+      );
+    },
+    onError: (err) => {
+      toast.dismiss();
+      toast.error(extractErrMsg(err));
+    },
+  });
+
   return {
     user: meQuery.data,
     isLoading: meQuery.isLoading,
@@ -91,5 +133,7 @@ export function useAuth() {
     login,
     signup,
     logout,
+    forgot,
+    reset,
   };
 }

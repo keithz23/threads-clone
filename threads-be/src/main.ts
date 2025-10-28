@@ -11,6 +11,8 @@ import helmet from 'helmet';
 import { ConfigService } from '@nestjs/config';
 import { setupSwagger } from './config/swagger.config';
 import * as cookieParser from 'cookie-parser';
+import { Queue } from 'bullmq';
+import { getQueueToken } from '@nestjs/bullmq';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

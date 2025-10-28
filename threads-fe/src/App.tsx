@@ -6,6 +6,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import Loading from "./pages/Loading";
 import Register from "./pages/Register";
+import ResetPassword from "./pages/ResetPassword";
+import Forgot from "./pages/Forgot";
 
 function App() {
   return (
@@ -33,6 +35,24 @@ function App() {
         element={
           <PublicRoute>
             <Register />
+          </PublicRoute>
+        }
+      />
+
+      <Route
+        path="/forgot"
+        element={
+          <PublicRoute>
+            <Forgot />
+          </PublicRoute>
+        }
+      />
+
+      <Route
+        path="/reset"
+        element={
+          <PublicRoute>
+            <ResetPassword />
           </PublicRoute>
         }
       />

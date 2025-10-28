@@ -48,11 +48,28 @@ model User {
   messages           Message[]
   reports            Report[]                  @relation("Reporter")
   reportedContent    Report[]                  @relation("ReportedUser")
+  PasswordResetToken PasswordResetToken[]
 
   @@index([username])
   @@index([email])
   @@index([createdAt(sort: Desc)])
   @@map("users")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  createdIp String?
+  createdUa String?
+
+  User User @relation(fields: [userId], references: [id])
+
+  @@index([userId, expiresAt])
+  @@map("password_reset_token")
 }
 
 model Post {

@@ -30,12 +30,31 @@ export class MailService {
     });
   }
 
-  async sendResetEmail(to: string, token: string, name?: string) {
+  async sendResetEmail(
+    to: string,
+    token: string,
+    username?: string,
+    expiresInMinutes: number = 60,
+  ) {
+    let expiresIn: string;
+    if (expiresInMinutes < 60) {
+      expiresIn = `${expiresInMinutes} minutes`;
+    } else if (expiresInMinutes === 60) {
+      expiresIn = '1 hour';
+    } else {
+      const hours = Math.floor(expiresInMinutes / 60);
+      expiresIn = `${hours} hours`;
+    }
+
     return this.enqueue({
       to,
       type: 'reset',
       subject: 'Reset your password',
-      context: { token, name },
+      context: {
+        token,
+        username: username || 'there',
+        expiresIn,
+      },
     });
   }
 }

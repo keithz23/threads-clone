@@ -1,4 +1,3 @@
-// src/mail/mail.processor.ts
 import {
   Injectable,
   NestInterceptor,

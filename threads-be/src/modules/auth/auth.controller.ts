@@ -33,6 +33,8 @@ import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Request, Response } from 'express';
 import { MailService } from 'src/mail/mail.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -75,11 +77,6 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.authService.login(loginDto, ipAddress, userAgent);
-
-    await this.mailService.sendVerifyEmail(
-      result.user.email,
-      result.accessToken,
-    );
 
     response.cookie('accessToken', result.accessToken, {
       httpOnly: true,
@@ -265,6 +262,31 @@ export class AuthController {
       changePasswordDto.currentPassword,
       changePasswordDto.newPassword,
     );
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(200)
+  async forgot(
+    @Body() body: ForgotPasswordDto,
+    @Ip() ipAddress: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
+    await this.authService.requestPasswordReset(
+      body.email,
+      userAgent,
+      ipAddress,
+    );
+
+    return { message: 'If the email exists, a reset link has been sent.' };
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(200)
+  async reset(@Body() resetPasswordDto: ResetPasswordDto) {
+    await this.authService.resetPassword(resetPasswordDto);
+    return { message: 'Password has been updated successfully.' };
   }
 
   @Get('sessions')

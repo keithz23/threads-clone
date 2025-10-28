@@ -1,20 +1,33 @@
+// src/mail/mail.processor.ts
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+  Logger,
+} from '@nestjs/common';
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
 import * as nodemailer from 'nodemailer';
 import * as fs from 'fs';
+import * as path from 'path';
 import * as Handlebars from 'handlebars';
+import type { TemplateDelegate } from 'handlebars';
+
 import { SendMailDto } from './dto/send-mail.dto';
 import { resolveTemplatePath } from 'src/common/utils/assets_path.util';
-import { Logger } from '@nestjs/common';
 
 @Processor('mail', { concurrency: 5 })
 export class MailProcessor extends WorkerHost {
   private readonly logger = new Logger(MailProcessor.name);
+
   private transporter: nodemailer.Transporter;
-  private templateCache = new Map<string, HandlebarsTemplateDelegate>();
+  private templateCache = new Map<string, TemplateDelegate>();
+
   private readonly appUrl: string;
   private readonly fromAddress: string;
+  private readonly fromName: string;
 
   constructor(private readonly cfg: ConfigService) {
     super();
@@ -22,18 +35,21 @@ export class MailProcessor extends WorkerHost {
     this.appUrl =
       this.cfg.get<string>('config.client.url') || 'http://localhost:5173';
     this.fromAddress = this.cfg.get<string>('config.mail.user') || '';
+    this.fromName = this.cfg.get<string>('config.mail.fromName') || 'No Reply';
 
     this.transporter = nodemailer.createTransport({
       host: this.cfg.get<string>('config.mail.host'),
       port: Number(this.cfg.get('config.mail.port') || 465),
-      secure: String(this.cfg.get('config.mail.secure') || 'true') === 'true',
+      secure: String(this.cfg.get('config.mail.secure') || 'true') === 'true', // 465->true, 587->false
       auth: {
         user: this.fromAddress,
         pass: this.cfg.get<string>('config.mail.password'),
       },
+      pool: true,
+      maxConnections: Number(this.cfg.get('config.mail.maxConnections') || 5),
+      maxMessages: Number(this.cfg.get('config.mail.maxMessages') || 100),
     });
 
-    // Preload templates
     this.loadTemplate('verify');
     this.loadTemplate('reset');
     this.loadTemplate('welcome');
@@ -43,62 +59,93 @@ export class MailProcessor extends WorkerHost {
     try {
       const file = resolveTemplatePath(name);
       const source = fs.readFileSync(file, 'utf8');
-      this.templateCache.set(name, Handlebars.compile(source));
+      const compiled = Handlebars.compile(source, { noEscape: false });
+      this.templateCache.set(name, compiled);
+      this.logger.log(`Loaded template: ${path.basename(file)}`);
     } catch (error) {
-      this.logger.error(`Failed to load template ${name}:`, error);
+      this.logger.error(`Failed to load template "${name}": ${error?.message}`);
     }
   }
 
   private renderTemplate(name: string, context: Record<string, any>): string {
     const template = this.templateCache.get(name);
     if (!template) {
-      throw new Error(`Template ${name} not found in cache`);
+      throw new Error(`Template "${name}" not found in cache`);
     }
     return template(context);
+  }
+
+  private htmlToTextFallback(html: string): string {
+    return html
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   async process(job: Job<SendMailDto, any, string>) {
     const { to, type, context } = job.data;
 
     try {
-      let subject = job.data.subject;
+      let subject = job.data.subject?.trim();
       let html = '';
 
       switch (type) {
-        case 'verify':
+        case 'verify': {
           subject ||= 'Verify your email';
+          const verifyUrl = `${this.appUrl}/verify?token=${encodeURIComponent(
+            context.token,
+          )}${context.redirect ? `&redirect=${encodeURIComponent(context.redirect)}` : ''}`;
           html = this.renderTemplate('verify', {
             ...context,
-            verifyUrl: `${this.appUrl}/verify?token=${context.token}`,
+            verifyUrl,
           });
           break;
-
-        case 'reset':
+        }
+        case 'reset': {
           subject ||= 'Reset your password';
+          const resetUrl = `${this.appUrl}/reset?token=${encodeURIComponent(
+            context.token,
+          )}${context.redirect ? `&redirect=${encodeURIComponent(context.redirect)}` : ''}`;
           html = this.renderTemplate('reset', {
             ...context,
-            resetUrl: `${this.appUrl}/reset?token=${context.token}`,
+            resetUrl,
           });
           break;
-
+        }
         case 'welcome':
-        default:
+        default: {
           subject ||= 'Welcome!';
           html = this.renderTemplate('welcome', context);
           break;
+        }
       }
 
-      await this.transporter.sendMail({
-        from: `"App" <${this.fromAddress}>`,
+      const text = this.htmlToTextFallback(html);
+
+      const from = `"${this.fromName}" <${this.fromAddress}>`;
+
+      const info = await this.transporter.sendMail({
+        from,
         to,
         subject,
         html,
+        text,
       });
 
-      this.logger.log(`Email sent successfully to ${to}`);
-      return { ok: true };
-    } catch (error) {
-      this.logger.error(`Failed to send email to ${to}:`, error);
+      this.logger.log(
+        `Email sent → to="${to}" subject="${subject}" messageId=${info.messageId}`,
+      );
+      return { ok: true, messageId: info.messageId };
+    } catch (error: any) {
+      // - wrong version number: SSL/TLS sai cổng/secure
+      // - self signed certificate: TLS
+      // - ETIMEDOUT / ESOCKETTIMEDOUT: network
+      const code = error?.code || 'MAIL_ERROR';
+      const reason = error?.response || error?.message || 'Unknown error';
+      this.logger.error(
+        `Failed to send email → to="${to}" type="${type}" code=${code} reason="${reason}"`,
+        error?.stack,
+      );
       throw error;
     }
   }

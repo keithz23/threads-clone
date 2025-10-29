@@ -230,7 +230,7 @@ model Mention {
   @@map("mentions")
 }
 
-// NEW: Hashtags
+// Hashtags
 model Hashtag {
   id        String        @id @default(cuid())
   name      String        @unique

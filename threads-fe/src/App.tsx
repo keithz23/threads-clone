@@ -1,5 +1,4 @@
 import { Routes, Route } from "react-router-dom";
-import "./App.css";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -14,7 +13,6 @@ import { useAuth } from "./hooks/useAuth";
 
 function App() {
   const { user } = useAuth();
-  console.log(user?.data?.id)
 
   return (
     <MessageSocketProvider userId={user?.data?.id}>

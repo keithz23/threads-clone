@@ -65,7 +65,7 @@ export class MessagesGateway
     const senderId = this.getUserIdFromSocket(client) || '';
 
     // 1. Save message in database
-    const savedMessage = await this.messagesService.create({
+    const savedMessage = await this.messagesService.createMessage({
       senderId,
       conversationId: data.conversationId,
       content: data.content,

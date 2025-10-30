@@ -3,7 +3,10 @@ import {
   UnauthorizedException,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
+import { addMinutes } from 'date-fns';
+import { randomBytes } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { RegisterDto } from './dto/register.dto';
@@ -14,6 +17,12 @@ import { HashUtil } from '../../common/utils/hash.util';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SUCCESS_MESSAGES } from 'src/common/constants/success-message';
 import { ERROR_MESSAGES } from 'src/common/constants/error-message';
+import { MailService } from 'src/mail/mail.service';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { PasswordResetToken } from '@prisma/client';
+
+const RESET_TTL_MINUTES = 30;
+const RESET_TOKEN_BYTES = 32; // 256-bit
 
 @Injectable()
 export class AuthService {
@@ -21,6 +30,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private mailService: MailService,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
@@ -237,6 +247,90 @@ export class AuthService {
     });
 
     return { message: 'Password changed successfully. Please login again.' };
+  }
+
+  async requestPasswordReset(
+    email: string,
+    userAgent?: string,
+    ipAddress?: string,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      return;
+    }
+
+    const activeCount = await this.prisma.passwordResetToken.count({
+      where: { userId: user.id, usedAt: null, expiresAt: { gt: new Date() } },
+    });
+    if (activeCount >= 3) return;
+
+    const rawToken = randomBytes(RESET_TOKEN_BYTES).toString('base64url');
+    const tokenHash = await HashUtil.hash(rawToken);
+    const expiresAt = addMinutes(new Date(), RESET_TTL_MINUTES);
+
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+        createdIp: ipAddress,
+        createdUa: userAgent,
+      },
+    });
+
+    await this.mailService.sendResetEmail(
+      user.email,
+      rawToken,
+      user.username,
+      RESET_TTL_MINUTES,
+    );
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    let { newPassword, token } = resetPasswordDto;
+
+    token = (token ?? '').trim();
+    if (!token) throw new BadRequestException('Invalid or expired token');
+
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const candidates = await this.prisma.passwordResetToken.findMany({
+      where: {
+        usedAt: null,
+        expiresAt: { gt: now },
+        createdAt: { gt: windowStart },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    let match: PasswordResetToken | null = null;
+    for (const c of candidates) {
+      if (await HashUtil.compare(token, c.tokenHash)) {
+        match = c;
+        break;
+      }
+    }
+
+    if (!match) {
+      throw new BadRequestException('Invalid or expired token');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: match.userId },
+        data: { passwordHash: await HashUtil.hash(newPassword) },
+      }),
+      this.prisma.passwordResetToken.update({
+        where: { id: match.id },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.passwordResetToken.updateMany({
+        where: { userId: match.userId, usedAt: null, id: { not: match.id } },
+        data: { usedAt: new Date() },
+      }),
+    ]);
   }
 
   async checkUsername(username: string): Promise<{ available: boolean }> {

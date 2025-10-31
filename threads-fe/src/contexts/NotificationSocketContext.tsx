@@ -12,7 +12,7 @@ import type {
 } from "../interfaces/notification/notification.interface";
 import socketService from "../services/socket/socket.service";
 import { NOTIFICATION_EVENTS } from "../services/socket/socket.config";
-import toast from "react-hot-toast";
+import { useToast } from "../components/Toast";
 
 const NotificationSocketContext = createContext<
   NotificationSocketContextType | undefined
@@ -41,7 +41,6 @@ export const NotificationSocketProvider: React.FC<
   const [isConnected, setIsConnected] = useState(false);
   const [notifications, setNotifications] = useState<Notification[] | []>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-
   // Init socket
   useEffect(() => {
     if (!userId) return;
@@ -160,6 +159,7 @@ function playNotificationSound() {
 }
 
 function showNotificationToast(notification: Notification) {
+  const toast = useToast();
   console.log("New notification:", notification);
   toast.success(notification.content.message);
 }

@@ -48,7 +48,7 @@ export default function EditProfile({
   name: nameProp = "lunez",
   handle: handleProp = "lunez195",
   bio: bioProp = "",
-  interests: interestsProp = [],
+  interests: interestsProp = ["music", "coding", "testing", "learning"],
   website: websiteProp = "",
   showInstagramBadge: showInstagramBadgeProp = false,
   privacy: privacyProp = "private",
@@ -111,7 +111,6 @@ export default function EditProfile({
     ? { duration: 0 }
     : ({ type: "spring", stiffness: 800, damping: 45, mass: 0.7 } as const);
 
-  // Header Title theo màn
   const renderHeaderTitle = () => {
     if (screen === "main") return "";
     const label =
@@ -312,7 +311,7 @@ export default function EditProfile({
         aria-label="Edit profile dialog"
       >
         <DialogDescription />
-        <DialogHeader className="px-5 pb-2">
+        <DialogHeader className="px-5">
           <DialogTitle className="text-lg">{renderHeaderTitle()}</DialogTitle>
         </DialogHeader>
 

@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
-import { BullModule } from '@nestjs/bull';
+import { BullModule } from '@nestjs/bullmq';
 import appConfig from './config/app.config';
 import { validationSchema } from './config/validation.schema';
 // Common
@@ -32,6 +32,8 @@ import { CustomThrottlerGuard } from './common/guards/throttle.guard';
 import { FollowsModule } from './modules/follows/follows.module';
 import { RepostsModule } from './modules/reposts/reposts.module';
 import { BlocksModule } from './modules/blocks/blocks.module';
+import { MailModule } from './mail/mail.module';
+import { ConversationsModule } from './modules/conversations/conversations.module';
 
 @Module({
   imports: [
@@ -46,13 +48,14 @@ import { BlocksModule } from './modules/blocks/blocks.module';
         abortEarly: true,
       },
     }),
+    MailModule,
 
     // Redis Cache
     CacheModule,
 
     // Bull Queue (for background jobs)
     BullModule.forRoot({
-      redis: {
+      connection: {
         host: process.env.REDIS_HOST,
         port: parseInt(process.env.REDIS_PORT || ''),
         password: process.env.REDIS_PASSWORD,
@@ -90,6 +93,7 @@ import { BlocksModule } from './modules/blocks/blocks.module';
     TasksModule,
     FollowsModule,
     RepostsModule,
+    ConversationsModule,
     BlocksModule,
   ],
   providers: [

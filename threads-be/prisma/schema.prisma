@@ -7,86 +7,101 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================
+// USER MODEL
+// ============================================
+
 model User {
-  id           String   @id @default(cuid())
-  username     String   @unique
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  displayName  String?  @map("display_name")
-  bio          String?  @db.Text // Changed to Text for longer bios
-  avatarUrl    String?  @map("avatar_url")
-  coverUrl     String?  @map("cover_url") //Cover photo like Threads
-  website      String? //User website
-  location     String? //User location
-  verified     Boolean  @default(false)
-  isPrivate    Boolean  @default(false) @map("is_private") //Private account
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String  @id @default(cuid())
+  username     String  @unique
+  email        String  @unique
+  passwordHash String  @map("password_hash")
+  displayName  String? @map("display_name")
+  bio          String? @db.Text
+  avatarUrl    String? @map("avatar_url")
+  coverUrl     String? @map("cover_url")
+  website      String?
+  location     String?
+  phoneNumber  String? @unique @map("phone_number")
+
+  // Status
+  verified   Boolean   @default(false)
+  isPrivate  Boolean   @default(false) @map("is_private")
+  isOnline   Boolean   @default(false) @map("is_online")
+  lastSeenAt DateTime? @map("last_seen_at")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Counters (denormalized for performance)
   followersCount Int @default(0) @map("followers_count")
   followingCount Int @default(0) @map("following_count")
   postsCount     Int @default(0) @map("posts_count")
 
-  // Relations
+  // Social Relations
   posts              Post[]
   likes              Like[]
   reposts            Repost[]
   bookmarks          Bookmark[]
-  refreshTokens      RefreshToken[]
-  followers          Follow[]                  @relation("UserFollowers")
-  following          Follow[]                  @relation("UserFollowing")
-  followRequests     FollowRequest[]           @relation("FollowRequestReceiver")
-  sentFollowRequests FollowRequest[]           @relation("FollowRequestSender")
-  notifications      Notification[]            @relation("NotificationRecipient")
-  actorNotifications Notification[]            @relation("NotificationActor")
-  blocking           Block[]                   @relation("Blocker")
-  blockedBy          Block[]                   @relation("Blocked")
-  muting             Mute[]                    @relation("Muter")
-  mutedBy            Mute[]                    @relation("Muted")
-  conversations      ConversationParticipant[]
-  messages           Message[]
-  reports            Report[]                  @relation("Reporter")
-  reportedContent    Report[]                  @relation("ReportedUser")
-  PasswordResetToken PasswordResetToken[]
+  followers          Follow[]        @relation("UserFollowers")
+  following          Follow[]        @relation("UserFollowing")
+  followRequests     FollowRequest[] @relation("FollowRequestReceiver")
+  sentFollowRequests FollowRequest[] @relation("FollowRequestSender")
+  notifications      Notification[]  @relation("NotificationRecipient")
+  actorNotifications Notification[]  @relation("NotificationActor")
+  reports            Report[]        @relation("Reporter")
+  reportedContent    Report[]        @relation("ReportedUser")
+
+  // Blocking & Muting
+  blocking  Block[] @relation("Blocker")
+  blockedBy Block[] @relation("Blocked")
+  muting    Mute[]  @relation("Muter")
+  mutedBy   Mute[]  @relation("Muted")
+
+  // Messaging Relations
+  conversations       ConversationParticipant[]
+  sentMessages        Message[]                 @relation("SentMessages")
+  messageReactions    MessageReaction[]
+  messageReadReceipts MessageReadReceipt[]
+  typingStatus        TypingStatus[]
+
+  // Auth & Security
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([username])
   @@index([email])
+  @@index([phoneNumber])
   @@index([createdAt(sort: Desc)])
   @@map("users")
 }
 
-model PasswordResetToken {
-  id        String    @id @default(cuid())
-  userId    String    @map("user_id")
-  tokenHash String
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-  createdIp String?
-  createdUa String?
-
-  User User @relation(fields: [userId], references: [id])
-
-  @@index([userId, expiresAt])
-  @@map("password_reset_token")
-}
+// ============================================
+// SOCIAL FEATURES
+// ============================================
 
 model Post {
-  id            String   @id @default(cuid())
-  userId        String   @map("user_id")
-  content       String   @db.Text
-  parentPostId  String?  @map("parent_post_id")
-  rootPostId    String?  @map("root_post_id")
-  replyCount    Int      @default(0) @map("reply_count")
-  likeCount     Int      @default(0) @map("like_count")
-  repostCount   Int      @default(0) @map("repost_count")
-  bookmarkCount Int      @default(0) @map("bookmark_count")
-  viewCount     Int      @default(0) @map("view_count") //Track views
-  isDeleted     Boolean  @default(false) @map("is_deleted")
-  isPinned      Boolean  @default(false) @map("is_pinned") //Pin posts
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id           String  @id @default(cuid())
+  userId       String  @map("user_id")
+  content      String  @db.Text
+  parentPostId String? @map("parent_post_id")
+  rootPostId   String? @map("root_post_id")
+
+  // Counters
+  replyCount    Int @default(0) @map("reply_count")
+  likeCount     Int @default(0) @map("like_count")
+  repostCount   Int @default(0) @map("repost_count")
+  bookmarkCount Int @default(0) @map("bookmark_count")
+  viewCount     Int @default(0) @map("view_count")
+
+  // Flags
+  isDeleted Boolean @default(false) @map("is_deleted")
+  isPinned  Boolean @default(false) @map("is_pinned")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -98,8 +113,8 @@ model Post {
   likes         Like[]
   reposts       Repost[]
   bookmarks     Bookmark[]
-  mentions      Mention[] //Track mentions
-  hashtags      PostHashtag[] //Track hashtags
+  mentions      Mention[]
+  hashtags      PostHashtag[]
   notifications Notification[]
   reports       Report[]
 
@@ -108,7 +123,7 @@ model Post {
   @@index([rootPostId])
   @@index([createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
-  @@index([userId, isPinned]) //For pinned posts
+  @@index([userId, isPinned])
   @@map("posts")
 }
 
@@ -118,14 +133,13 @@ model PostMedia {
   mediaUrl     String    @map("media_url")
   thumbnailUrl String?   @map("thumbnail_url")
   mediaType    MediaType @map("media_type")
-  width        Int? //Image/video dimensions
-  height       Int? //
-  duration     Int? //Video duration in seconds
-  fileSize     Int?      @map("file_size") //File size in bytes
+  width        Int?
+  height       Int?
+  duration     Int?
+  fileSize     Int?      @map("file_size")
   orderIndex   Int       @map("order_index")
   createdAt    DateTime  @default(now()) @map("created_at")
 
-  // Relations
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([postId])
@@ -138,7 +152,6 @@ model Follow {
   followingId String   @map("following_id")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  // Relations
   follower  User @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
   following User @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
 
@@ -149,7 +162,6 @@ model Follow {
   @@map("follows")
 }
 
-//Follow requests for private accounts
 model FollowRequest {
   id          String              @id @default(cuid())
   senderId    String              @map("sender_id")
@@ -173,7 +185,6 @@ model Like {
   postId    String   @map("post_id")
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
@@ -188,10 +199,9 @@ model Repost {
   id        String   @id @default(cuid())
   userId    String   @map("user_id")
   postId    String   @map("post_id")
-  comment   String?  @db.Text //Quote repost with comment
+  comment   String?  @db.Text
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
@@ -230,7 +240,6 @@ model Mention {
   @@map("mentions")
 }
 
-// NEW: Hashtags
 model Hashtag {
   id        String        @id @default(cuid())
   name      String        @unique
@@ -240,7 +249,7 @@ model Hashtag {
   posts     PostHashtag[]
 
   @@index([name])
-  @@index([postCount(sort: Desc)]) // For trending hashtags
+  @@index([postCount(sort: Desc)])
   @@map("hashtags")
 }
 
@@ -268,7 +277,6 @@ model Notification {
   isRead    Boolean          @default(false) @map("is_read")
   createdAt DateTime         @default(now()) @map("created_at")
 
-  // Relations
   user  User  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
   actor User  @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
   post  Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -285,7 +293,6 @@ model Block {
   blockedId String   @map("blocked_id")
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Relations
   blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
   blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
 
@@ -301,7 +308,6 @@ model Mute {
   mutedId   String   @map("muted_id")
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Relations
   muter User @relation("Muter", fields: [muterId], references: [id], onDelete: Cascade)
   muted User @relation("Muted", fields: [mutedId], references: [id], onDelete: Cascade)
 
@@ -311,65 +317,203 @@ model Mute {
   @@map("mutes")
 }
 
+// ============================================
+// MESSAGING SYSTEM
+// ============================================
+
 model Conversation {
-  id            String    @id @default(cuid())
-  isGroup       Boolean   @default(false) @map("is_group")
-  groupName     String?   @map("group_name")
-  groupAvatar   String?   @map("group_avatar")
-  lastMessageAt DateTime? @map("last_message_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id            String           @id @default(cuid())
+  type          ConversationType @default(DIRECT)
+  name          String?
+  description   String?          @db.Text
+  avatar        String?
+  lastMessageId String?          @unique @map("last_message_id")
+  lastMessageAt DateTime?        @map("last_message_at")
+  messageCount  Int              @default(0) @map("message_count")
+  isArchived    Boolean          @default(false) @map("is_archived")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
 
-  // Relations
-  participants ConversationParticipant[]
-  messages     Message[]
+  participants   ConversationParticipant[]
+  messages       Message[]
+  lastMessage    Message?                  @relation("LastMessage", fields: [lastMessageId], references: [id], onDelete: SetNull)
+  typingStatus   TypingStatus[]
+  pinnedMessages PinnedMessage[]
 
+  @@index([type])
   @@index([lastMessageAt(sort: Desc)])
+  @@index([createdAt])
   @@map("conversations")
 }
 
 model ConversationParticipant {
-  id             String    @id @default(cuid())
-  conversationId String    @map("conversation_id")
-  userId         String    @map("user_id")
-  lastReadAt     DateTime? @map("last_read_at")
-  isAdmin        Boolean   @default(false) @map("is_admin")
-  joinedAt       DateTime  @default(now()) @map("joined_at")
+  id                String          @id @default(cuid())
+  conversationId    String          @map("conversation_id")
+  userId            String          @map("user_id")
+  role              ParticipantRole @default(MEMBER)
+  nickname          String?
+  lastReadMessageId String?         @map("last_read_message_id")
+  lastReadAt        DateTime?       @map("last_read_at")
+  unreadCount       Int             @default(0) @map("unread_count")
+  mentionCount      Int             @default(0) @map("mention_count")
+  isMuted           Boolean         @default(false) @map("is_muted")
+  mutedUntil        DateTime?       @map("muted_until")
+  isPinned          Boolean         @default(false) @map("is_pinned")
+  joinedAt          DateTime        @default(now()) @map("joined_at")
+  leftAt            DateTime?       @map("left_at")
 
-  // Relations
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadMessage Message?     @relation("LastReadMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
 
   @@unique([conversationId, userId])
   @@index([userId])
   @@index([conversationId])
+  @@index([userId, isPinned, lastReadAt(sort: Desc)])
   @@map("conversation_participants")
 }
 
 model Message {
-  id             String      @id @default(cuid())
-  conversationId String      @map("conversation_id")
-  senderId       String      @map("sender_id")
-  content        String?     @db.Text
-  messageType    MessageType @default(TEXT) @map("message_type")
-  mediaUrl       String?     @map("media_url")
-  replyToId      String?     @map("reply_to_id") //Reply to message
-  isDeleted      Boolean     @default(false) @map("is_deleted")
-  isEdited       Boolean     @default(false) @map("is_edited")
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
+  id             String @id @default(cuid())
+  conversationId String @map("conversation_id")
+  senderId       String @map("sender_id")
+
+  // Content
+  content String?       @db.Text
+  type    MessageType   @default(TEXT)
+  status  MessageStatus @default(SENT)
+
+  // Reply & Forward
+  replyToId       String? @map("reply_to_id")
+  forwardedFromId String? @map("forwarded_from_id")
+
+  // Metadata
+  metadata Json?
+
+  // Flags
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  isEdited  Boolean   @default(false) @map("is_edited")
+  editedAt  DateTime? @map("edited_at")
+  isPinned  Boolean   @default(false) @map("is_pinned")
+
+  // Mentions
+  mentions String[]
+
+  // Timestamps
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
   // Relations
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  replyTo      Message?     @relation("MessageReplies", fields: [replyToId], references: [id])
-  replies      Message[]    @relation("MessageReplies")
+  sender       User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  replyTo Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies Message[] @relation("MessageReplies")
+
+  forwardedFrom Message?  @relation("MessageForwards", fields: [forwardedFromId], references: [id], onDelete: SetNull)
+  forwards      Message[] @relation("MessageForwards")
+
+  attachments  MessageAttachment[]
+  reactions    MessageReaction[]
+  readReceipts MessageReadReceipt[]
+  pinnedIn     PinnedMessage[]
+
+  lastReadBy    ConversationParticipant[] @relation("LastReadMessage")
+  lastMessageIn Conversation?             @relation("LastMessage")
 
   @@index([conversationId, createdAt(sort: Desc)])
   @@index([senderId])
   @@index([replyToId])
+  @@index([forwardedFromId])
+  @@index([conversationId, status])
+  @@index([conversationId, isDeleted, createdAt])
   @@map("messages")
 }
+
+model MessageAttachment {
+  id           String   @id @default(cuid())
+  messageId    String   @map("message_id")
+  url          String
+  thumbnailUrl String?  @map("thumbnail_url")
+  fileName     String   @map("file_name")
+  fileSize     Int      @map("file_size")
+  mimeType     String   @map("mime_type")
+  width        Int?
+  height       Int?
+  duration     Int?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("message_attachments")
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  emoji     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@index([userId])
+  @@map("message_reactions")
+}
+
+model MessageReadReceipt {
+  id        String   @id @default(cuid())
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  readAt    DateTime @default(now()) @map("read_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId, readAt(sort: Desc)])
+  @@map("message_read_receipts")
+}
+
+model PinnedMessage {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  messageId      String   @map("message_id")
+  pinnedBy       String   @map("pinned_by")
+  pinnedAt       DateTime @default(now()) @map("pinned_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message      Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, messageId])
+  @@index([conversationId])
+  @@map("pinned_messages")
+}
+
+model TypingStatus {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  userId         String   @map("user_id")
+  isTyping       Boolean  @default(true) @map("is_typing")
+  lastTypingAt   DateTime @default(now()) @map("last_typing_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([conversationId, lastTypingAt])
+  @@map("typing_status")
+}
+
+// ============================================
+// AUTH & SECURITY
+// ============================================
 
 model RefreshToken {
   id        String   @id @default(cuid())
@@ -387,6 +531,26 @@ model RefreshToken {
   @@index([expiresAt])
   @@map("refresh_tokens")
 }
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  createdIp String?
+  createdUa String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("password_reset_tokens")
+}
+
+// ============================================
+// MODERATION
+// ============================================
 
 model Report {
   id         String       @id @default(cuid())
@@ -410,19 +574,13 @@ model Report {
   @@map("reports")
 }
 
-// ============= ENUMS =============
+// ============================================
+// ENUMS
+// ============================================
 
 enum MediaType {
   IMAGE
   VIDEO
-  GIF
-}
-
-enum MessageType {
-  TEXT
-  IMAGE
-  VIDEO
-  POST_SHARE
   GIF
 }
 
@@ -458,4 +616,36 @@ enum ReportStatus {
   REVIEWED
   RESOLVED
   DISMISSED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  FILE
+  LOCATION
+  CONTACT
+  STICKER
+  SYSTEM
+}
+
+enum MessageStatus {
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+  CHANNEL
+}
+
+enum ParticipantRole {
+  MEMBER
+  ADMIN
+  OWNER
 }

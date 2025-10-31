@@ -33,6 +33,7 @@ import { FollowsModule } from './modules/follows/follows.module';
 import { RepostsModule } from './modules/reposts/reposts.module';
 import { BlocksModule } from './modules/blocks/blocks.module';
 import { MailModule } from './mail/mail.module';
+import { ConversationsModule } from './modules/conversations/conversations.module';
 
 @Module({
   imports: [
@@ -92,6 +93,7 @@ import { MailModule } from './mail/mail.module';
     TasksModule,
     FollowsModule,
     RepostsModule,
+    ConversationsModule,
     BlocksModule,
   ],
   providers: [

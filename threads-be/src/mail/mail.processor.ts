@@ -1,8 +1,4 @@
 import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
   Logger,
 } from '@nestjs/common';
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';

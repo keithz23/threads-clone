@@ -5,6 +5,7 @@ import type { RegisterDto } from "../interfaces/auth/register.interface";
 import type { ForgotPasswordDto } from "../interfaces/auth/forgot-password.interface";
 import type { ResetPasswordDto } from "../interfaces/auth/reset-password.interface";
 import { useToast } from "../components/Toast";
+import type { UpdateProfileDto } from "@/interfaces/auth/profile.interface";
 
 function extractErrMsg(err: unknown): string {
   const anyErr = err as any;
@@ -115,6 +116,23 @@ export function useAuth() {
     },
   });
 
+  const update = useMutation({
+    mutationFn: ({
+      updateProfileDto,
+    }: {
+      updateProfileDto: UpdateProfileDto;
+    }) => {
+      return AuthService.updateProfile(updateProfileDto);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["me"] });
+      toast.success("Update profile successfully");
+    },
+    onError: (err) => {
+      toast.error(extractErrMsg(err));
+    },
+  });
+
   return {
     user: meQuery.data,
     isLoading: meQuery.isLoading,
@@ -126,5 +144,6 @@ export function useAuth() {
     logout,
     forgot,
     reset,
+    update,
   };
 }

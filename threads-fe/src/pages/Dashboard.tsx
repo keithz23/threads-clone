@@ -37,13 +37,6 @@ export default function Dashboard() {
 
         {tabContent[activeTab]}
       </main>
-
-      {/* Right */}
-      <div className="hidden md:flex justify-end items-start p-4">
-        <button className="py-2 px-4 border rounded-xl bg-black text-white">
-          Login
-        </button>
-      </div>
     </div>
   );
 }

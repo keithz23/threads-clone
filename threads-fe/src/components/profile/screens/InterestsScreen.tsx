@@ -1,6 +1,7 @@
 import { Separator } from "@/components/ui/separator";
 import { CircleMinus, TextAlignJustify } from "lucide-react";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useFormContext } from "react-hook-form";
 import { DndContext, closestCenter } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
 import {
@@ -11,41 +12,53 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-type InterestsScreenProps = {
-  interestsVal: string[];
-  setInterestsVal: React.Dispatch<React.SetStateAction<string[]>>;
-  go: (screen: "main" | "bio" | "interests" | "links") => void;
-};
-
-export const InterestsScreen = ({
-  interestsVal,
-  setInterestsVal,
-}: InterestsScreenProps) => {
+export const InterestsScreen = () => {
   const [draft, setDraft] = useState("");
+
+  // Access form context
+  const { watch, setValue } = useFormContext();
+
+  // Use local state for DnD
+  const [localInterests, setLocalInterests] = useState<string[]>([]);
+
+  // Sync from form to local state
+  useEffect(() => {
+    const interests = watch("interests") || [];
+    setLocalInterests(interests);
+  }, [watch("interests")]);
 
   const add = () => {
     const v = draft.trim();
     if (!v) return;
-    if (!interestsVal.includes(v)) setInterestsVal((prev) => [...prev, v]);
+    if (!localInterests.includes(v)) {
+      const newInterests = [...localInterests, v];
+      setLocalInterests(newInterests);
+      setValue("interests", newInterests);
+    }
     setDraft("");
   };
 
-  const remove = (s: string) =>
-    setInterestsVal((prev) => prev.filter((x) => x !== s));
+  const remove = (s: string) => {
+    const newInterests = localInterests.filter((x: string) => x !== s);
+    setLocalInterests(newInterests);
+    setValue("interests", newInterests);
+  };
 
   const onDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = interestsVal.findIndex((x) => x === active.id);
-    const newIndex = interestsVal.findIndex((x) => x === over.id);
+    const oldIndex = localInterests.findIndex((x: string) => x === active.id);
+    const newIndex = localInterests.findIndex((x: string) => x === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    setInterestsVal((prev) => arrayMove(prev, oldIndex, newIndex));
+    const newInterests = arrayMove(localInterests, oldIndex, newIndex);
+    setLocalInterests(newInterests);
+    setValue("interests", newInterests, { shouldDirty: true });
   };
 
   return (
-    <div className="flex flex-col gap-5 p-6 overflow-hidden">
+    <div className="flex flex-col gap-5 p-6">
       <div className="flex gap-3">
         <input
           type="text"
@@ -58,20 +71,20 @@ export const InterestsScreen = ({
       </div>
 
       <div className="flex flex-wrap gap-2 w-full">
-        {interestsVal.length ? (
+        {localInterests.length ? (
           <DndContext collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext
-              items={interestsVal}
+              items={localInterests}
               strategy={verticalListSortingStrategy}
             >
               <div className="border border-gray-300 shadow-2xs w-full rounded-2xl overflow-hidden">
-                {interestsVal.map((tag, i) => (
+                {localInterests.map((tag: string, i: number) => (
                   <RowItem
                     key={tag}
                     id={tag}
                     tag={tag}
                     onRemove={remove}
-                    showSep={i < interestsVal.length - 1}
+                    showSep={i < localInterests.length - 1}
                   />
                 ))}
               </div>

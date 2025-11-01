@@ -4,6 +4,7 @@ import {
   MaxLength,
   IsUrl,
   IsBoolean,
+  IsArray,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -41,4 +42,18 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsBoolean()
   isPrivate?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  linkTitle: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com' })
+  @IsOptional()
+  @IsUrl()
+  link: string;
+
+  @ApiPropertyOptional({ example: ['music', 'coding', 'chlling'] })
+  @IsArray()
+  interests: string[];
 }

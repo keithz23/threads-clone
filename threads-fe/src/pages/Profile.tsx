@@ -6,6 +6,8 @@ import Media from "../components/tabs/Media";
 import Reposts from "../components/tabs/Reposts";
 import { Button } from "@/components/ui/button";
 import EditProfile from "@/components/profile/EditProfile";
+import { useAuth } from "@/hooks/useAuth";
+import type { UpdateProfileDto } from "@/interfaces/auth/profile.interface";
 
 type TabKey = "threads" | "replies" | "media" | "reposts";
 
@@ -23,20 +25,67 @@ const TAB_TO_COMPONENT: Record<TabKey, JSX.Element> = {
   reposts: <Reposts />,
 };
 
-export default function Profile() {
-  const interests = useMemo(() => ["music", "+"].filter(Boolean), []);
-  const [open, setOpen] = useState(false);
+function normalizeUrl(url?: string) {
+  if (!url) return "";
+  try {
+    const hasProtocol = /^https?:\/\//i.test(url);
+    return hasProtocol ? url : `https://${url}`;
+  } catch {
+    return "";
+  }
+}
 
-  const initialTab = (() => {
+export default function Profile() {
+  const [open, setOpen] = useState(false);
+  const { user, update } = useAuth();
+
+  const profile = useMemo(() => {
+    const d = user?.data ?? {};
+
+    const interestsClean: string[] = Array.isArray(d.interests)
+      ? [
+          ...new Set(
+            (d.interests as unknown[])
+              .map(String)
+              .map((s) => s.trim())
+              .filter(Boolean)
+          ),
+        ]
+      : [];
+
+    return {
+      displayName: (d.displayName ?? "").trim(),
+      username: (d.username ?? "").trim(),
+      bio: (d.bio ?? "").trim(),
+      interests: interestsClean,
+      link: normalizeUrl(d.link),
+      linkTitle: (d.linkTitle ?? "").trim(),
+      isPrivate: Boolean(d.isPrivate),
+      avatarUrl:
+        (d.avatarUrl as string) ||
+        "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop",
+      followersCount:
+        typeof d.followersCount === "number" &&
+        Number.isFinite(d.followersCount)
+          ? d.followersCount
+          : 0,
+    };
+  }, [user?.data]);
+
+  const handleSave = async (data: UpdateProfileDto) => {
+    await update.mutateAsync({ updateProfileDto: data });
+  };
+
+  const initialTab: TabKey = useMemo(() => {
     const url = new URL(window.location.href);
     const fromUrl = url.searchParams.get("tab") as TabKey | null;
     if (fromUrl && TABS.some((t) => t.name === fromUrl)) return fromUrl;
 
-    const fromLs = localStorage.getItem("profile_active_tab") as TabKey | null;
+    const fromLs = (localStorage.getItem("profile_active_tab") || "") as TabKey;
     if (fromLs && TABS.some((t) => t.name === fromLs)) return fromLs;
 
-    return "threads" as const;
-  })();
+    return "threads";
+  }, []);
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
 
@@ -44,16 +93,15 @@ export default function Profile() {
     localStorage.setItem("profile_active_tab", activeTab);
     const url = new URL(window.location.href);
     url.searchParams.set("tab", activeTab);
-    const current = new URL(window.location.href);
-    if (current.search !== url.search) {
+    if (window.location.search !== url.search) {
       window.history.replaceState(null, "", url.toString());
     }
   }, [activeTab]);
 
-  const avatarUrl =
-    "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop";
-
-  const handleOpenDialog = () => setOpen(true);
+  const interestPills = useMemo(
+    () => [...profile.interests, "+"],
+    [profile.interests]
+  );
 
   return (
     <div
@@ -67,16 +115,18 @@ export default function Profile() {
         <div className="flex items-start justify-between gap-4 mb-4">
           <div className="flex-1 min-w-0">
             <h2 className="font-semibold text-xl leading-tight break-words">
-              lunez
+              {profile.displayName || profile.username || "Unnamed"}
             </h2>
-            <div className="text-gray-500 text-sm">@lunez</div>
+            {profile.username && (
+              <div className="text-gray-500 text-sm">@{profile.username}</div>
+            )}
           </div>
 
           {/* Avatar */}
           <div className="flex items-start gap-3">
             <div className="rounded-full ring-4 ring-white/90 shadow-md">
               <img
-                src={avatarUrl}
+                src={profile.avatarUrl}
                 alt="Profile picture"
                 width={90}
                 height={90}
@@ -88,33 +138,42 @@ export default function Profile() {
 
         {/* Bio */}
         <div>
-          <p className="text-sm text-gray-800">nothing</p>
+          {profile.bio && (
+            <p className="text-sm text-gray-800">{profile.bio}</p>
+          )}
 
           {/* Interest pills */}
-          <div className="mt-3 flex items-center gap-2">
-            {interests.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-700"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
+          {interestPills.length > 0 && (
+            <div className="mt-3 flex items-center gap-2 flex-wrap cursor-pointer">
+              {interestPills.map((tag) => (
+                <span
+                  key={String(tag)}
+                  className="inline-flex items-center rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-700"
+                >
+                  {String(tag)}
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* Followers · website + Insights */}
           <div className="mt-3 text-sm text-gray-500 flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
-              <span>0 followers</span>
-              <span>·</span>
-              <a
-                href="https://keithivers.me"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-gray-600 hover:underline"
-              >
-                <LinkIcon className="size-4" aria-hidden /> keithivers.me
-              </a>
+              <span>{profile.followersCount} followers</span>
+              {profile.link && (
+                <>
+                  <span>·</span>
+                  <a
+                    href={profile.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-gray-600 hover:underline"
+                  >
+                    <LinkIcon className="size-4" aria-hidden />
+                    {profile.linkTitle || profile.link}
+                  </a>
+                </>
+              )}
             </div>
             <button
               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 hover:bg-gray-50 cursor-pointer"
@@ -131,7 +190,7 @@ export default function Profile() {
         <div className="mt-5">
           <Button
             type="button"
-            onClick={handleOpenDialog}
+            onClick={() => setOpen(true)}
             className="w-full rounded-xl border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 cursor-pointer"
             variant="outline"
           >
@@ -190,7 +249,7 @@ export default function Profile() {
       <div className="p-4">
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 p-3">
           <img
-            src={avatarUrl}
+            src={profile.avatarUrl}
             alt="Your avatar"
             width={28}
             height={28}
@@ -224,7 +283,18 @@ export default function Profile() {
       </div>
 
       {/* Edit Profile Dialog */}
-      <EditProfile open={open} setOpen={setOpen} />
+      <EditProfile
+        open={open}
+        setOpen={setOpen}
+        name={profile.displayName}
+        handle={profile.username}
+        bio={profile.bio}
+        interests={profile.interests}
+        link={profile.link}
+        linkTitle={profile.linkTitle}
+        isPrivate={profile.isPrivate}
+        onSave={handleSave}
+      />
     </div>
   );
 }

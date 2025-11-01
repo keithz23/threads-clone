@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useForm, FormProvider } from "react-hook-form";
 import {
   Dialog,
   DialogContent,
@@ -8,16 +9,23 @@ import {
 } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Separator } from "../ui/separator";
-import { Switch } from "../ui/switch";
 import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
 import AvatarPopover from "./AvatarPopover";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { InterestsScreen } from "./screens/InterestsScreen";
-import { BioScreen } from "./screens/BioScreen";
-import { LinksScreen } from "./screens/LinkScreen";
+import BioScreen from "./screens/BioScreen";
+import LinksScreen from "./screens/LinkScreen";
+import { useScreen } from "@/hooks/useScreen";
 
 type Privacy = "private" | "public";
-type Screen = "main" | "bio" | "interests" | "links";
+
+type FormData = {
+  bio: string;
+  interests: string[];
+  link: string;
+  linkTitle: string;
+  isPrivate: boolean;
+};
 
 type EditProfileProps = {
   open: boolean;
@@ -27,19 +35,23 @@ type EditProfileProps = {
   bio?: string;
   interests?: string[];
   website?: string;
-  showInstagramBadge?: boolean;
+  link: string;
+  linkTitle?: string;
+  isPrivate?: boolean;
   privacy?: Privacy;
+
   onSave?(payload: {
     name: string;
     handle: string;
     bio: string;
     interests: string[];
     website: string;
-    showInstagramBadge: boolean;
-    privacy: Privacy;
+    link: string;
+    linkTitle: string;
+    isPrivate: boolean;
+    privacy?: Privacy;
   }): void;
-  onEditInterests?(): void;
-  onEditLinks?(): void;
+  onEditInterests?(interests: string[]): void;
 };
 
 export default function EditProfile({
@@ -49,56 +61,78 @@ export default function EditProfile({
   handle: handleProp = "lunez195",
   bio: bioProp = "",
   interests: interestsProp = ["music", "coding", "testing", "learning"],
-  website: websiteProp = "",
-  showInstagramBadge: showInstagramBadgeProp = false,
+  website = "",
+  link: linkProp = "",
+  linkTitle: linkTitleProp = "",
+  isPrivate: isPrivateProp,
   privacy: privacyProp = "private",
   onSave,
 }: EditProfileProps) {
   // Local states
   const [name] = useState(nameProp);
   const [handle] = useState(handleProp);
+  const { screen, direction, go, reset } = useScreen();
 
-  const [bioVal, setBioVal] = useState(bioProp);
-  const [interestsVal, setInterestsVal] = useState<string[]>(interestsProp);
-  const [websiteVal, setWebsiteVal] = useState(websiteProp);
-  const [igBadge, setIgBadge] = useState(showInstagramBadgeProp);
-  const [privacyVal, setPrivacyVal] = useState<Privacy>(privacyProp);
+  const [isPrivate, setIsPrivate] = useState<boolean>(
+    typeof isPrivateProp === "boolean"
+      ? isPrivateProp
+      : privacyProp === "private"
+  );
 
-  // Sliding screens
-  const [screen, setScreen] = useState<Screen>("main");
-  const [direction, setDirection] = useState<1 | -1>(1);
   const prefersReduced = useReducedMotion();
 
-  const go = (next: Screen) => {
-    const order: Screen[] = ["main", "bio", "interests", "links"];
-    const curIdx = order.indexOf(screen);
-    const nextIdx = order.indexOf(next);
-    setDirection(nextIdx > curIdx ? 1 : -1);
-    setScreen(next);
-  };
+  // React Hook Form
+  const methods = useForm<FormData>({
+    defaultValues: {
+      bio: bioProp,
+      interests: interestsProp,
+      link: linkProp,
+      linkTitle: linkTitleProp,
+      isPrivate: isPrivateProp,
+    },
+  });
+
+  const { handleSubmit, watch, reset: resetForm } = methods;
+
+  // Watch values for display
+  const bioVal = watch("bio");
+  const interestsVal = watch("interests");
+  const linkVal = watch("link");
 
   useEffect(() => {
     if (!open) {
       const t = setTimeout(() => {
-        setScreen("main");
-        setDirection(1);
+        reset();
       }, 120);
       return () => clearTimeout(t);
     }
-  }, [open]);
+  }, [open, reset]);
 
-  const saveAndClose = () => {
+  // Reset form when dialog opens with new values
+  useEffect(() => {
+    if (open) {
+      resetForm({
+        bio: bioProp,
+        interests: interestsProp,
+        link: linkProp,
+        linkTitle: linkTitleProp,
+      });
+    }
+  }, [open, bioProp, interestsProp, linkProp, linkTitleProp, resetForm]);
+
+  const saveAndClose = handleSubmit((data) => {
     onSave?.({
       name: name.trim(),
       handle: handle.trim(),
-      bio: bioVal.trim(),
-      interests: interestsVal,
-      website: websiteVal.trim(),
-      showInstagramBadge: igBadge,
-      privacy: privacyVal,
+      bio: data.bio.trim(),
+      interests: data.interests,
+      website: website?.trim?.() ?? "",
+      link: data.link.trim(),
+      linkTitle: data.linkTitle.trim(),
+      isPrivate,
     });
-    setOpen(false);
-  };
+    go("main");
+  });
 
   // Variants slide
   const variants = {
@@ -109,37 +143,52 @@ export default function EditProfile({
 
   const sharedTransition = prefersReduced
     ? { duration: 0 }
-    : ({ type: "spring", stiffness: 800, damping: 45, mass: 0.7 } as const);
+    : ({ type: "spring", stiffness: 800, damping: 50, mass: 0.7 } as const);
 
   const renderHeaderTitle = () => {
     if (screen === "main") return "";
     const label =
-      screen === "bio" ? "Bio" : screen === "interests" ? "Interests" : "Links";
+      screen === "bio"
+        ? "Edit bio"
+        : screen === "interests"
+        ? "Interests"
+        : screen === "links"
+        ? "Links"
+        : screen === "add"
+        ? "Add link"
+        : screen === "edit"
+        ? "Edit link"
+        : "";
 
     return (
-      <div className="grid grid-cols-[auto_1fr_auto] items-center">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center border-b border-gray-500 px-2 pb-2 min-h-12">
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => go("main")}
-          className="cursor-pointer"
+          onClick={() =>
+            screen === "add" || screen === "edit" ? go("links") : go("main")
+          }
+          className="justify-self-start cursor-pointer"
           aria-label="Back"
         >
           <ChevronLeft className="h-6 w-6" />
         </Button>
-        <span className="justify-self-center text-base font-medium">
-          {label}
-        </span>
-        {screen === "bio" ? (
+
+        <span className="text-base font-bold text-center">{label}</span>
+
+        {screen === "bio" ||
+        screen === "add" ||
+        screen === "edit" ||
+        screen === "interests" ? (
           <button
-            className="text-sm cursor-pointer"
+            className="justify-self-end text-sm cursor-pointer"
             type="button"
-            onClick={() => go("main")}
+            onClick={saveAndClose}
           >
             <span>Done</span>
           </button>
         ) : (
-          <div className="h-10 w-10" aria-hidden />
+          <span className="justify-self-end" aria-hidden />
         )}
       </div>
     );
@@ -179,7 +228,7 @@ export default function EditProfile({
             <div className="text-base text-gray-500">
               {bioVal
                 ? `${bioVal.slice(0, 60)}${bioVal.length > 60 ? "…" : ""}`
-                : "Write bio"}
+                : "+ Write bio"}
             </div>
           </div>
           <ChevronRight className="size-5 text-gray-400 shrink-0" aria-hidden />
@@ -227,7 +276,7 @@ export default function EditProfile({
               Links
             </div>
             <div className="text-base text-gray-500">
-              {websiteVal ? websiteVal : "Add website"}
+              {linkVal ? linkVal : "Add website"}
             </div>
           </div>
           <ChevronRight className="size-5 text-gray-400 shrink-0" aria-hidden />
@@ -238,38 +287,11 @@ export default function EditProfile({
         <Separator />
       </div>
 
-      {/* Instagram badge toggle */}
-      <div className="px-6 py-5">
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <div className="text-base font-semibold text-gray-900 mb-1">
-              Show Instagram badge
-            </div>
-            <div className="text-sm text-gray-500">
-              When turned on, the Threads badge on your Instagram profile will
-              also appear.
-            </div>
-          </div>
-          <Switch
-            className="cursor-pointer"
-            checked={igBadge}
-            onCheckedChange={(v) => setIgBadge(v)}
-            aria-label="Show Instagram badge"
-          />
-        </div>
-      </div>
-
-      <div className="px-6">
-        <Separator />
-      </div>
-
-      {/* Profile privacy */}
+      {/* Profile privacy (uses isPrivate boolean) */}
       <button
         type="button"
         className="w-full text-left px-6 py-5 hover:bg-gray-50 transition cursor-pointer"
-        onClick={() =>
-          setPrivacyVal((p) => (p === "private" ? "public" : "private"))
-        }
+        onClick={() => setIsPrivate((p) => !p)}
         aria-label="Toggle profile privacy"
       >
         <div className="flex items-center justify-between">
@@ -283,7 +305,7 @@ export default function EditProfile({
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <span className="text-base text-gray-500 capitalize">
-              {privacyVal}
+              {isPrivate ? "private" : "public"}
             </span>
             <ChevronRight className="size-5 text-gray-400" aria-hidden />
           </div>
@@ -311,72 +333,65 @@ export default function EditProfile({
         aria-label="Edit profile dialog"
       >
         <DialogDescription />
-        <DialogHeader className="px-5">
+        <DialogHeader>
           <DialogTitle className="text-lg">{renderHeaderTitle()}</DialogTitle>
         </DialogHeader>
 
-        {/* Container với overflow auto */}
-        <div className="relative overflow-y-auto max-h-[80vh]">
-          <AnimatePresence mode="wait" custom={direction} initial={false}>
-            {screen === "main" ? (
-              <motion.div
-                key="main"
-                custom={direction}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                variants={variants}
-                transition={sharedTransition}
-              >
-                <MainScreen />
-              </motion.div>
-            ) : screen === "bio" ? (
-              <motion.div
-                key="bio"
-                custom={direction}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                variants={variants}
-                transition={sharedTransition}
-              >
-                <BioScreen bioVal={bioVal} setBioVal={setBioVal} go={go} />
-              </motion.div>
-            ) : screen === "interests" ? (
-              <motion.div
-                key="interests"
-                custom={direction}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                variants={variants}
-                transition={sharedTransition}
-              >
-                <InterestsScreen
-                  interestsVal={interestsVal}
-                  setInterestsVal={setInterestsVal}
-                  go={go}
-                />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="links"
-                custom={direction}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                variants={variants}
-                transition={sharedTransition}
-              >
-                <LinksScreen
-                  websiteVal={websiteVal}
-                  setWebsiteVal={setWebsiteVal}
-                  go={go}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        <FormProvider {...methods}>
+          <div className="relative overflow-hidden max-h-[80vh]">
+            <AnimatePresence mode="wait" custom={direction} initial={false}>
+              {screen === "main" ? (
+                <motion.div
+                  key="main"
+                  custom={direction}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  variants={variants}
+                  transition={sharedTransition}
+                >
+                  <MainScreen />
+                </motion.div>
+              ) : screen === "bio" ? (
+                <motion.div
+                  key="bio"
+                  custom={direction}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  variants={variants}
+                  transition={sharedTransition}
+                >
+                  <BioScreen />
+                </motion.div>
+              ) : screen === "interests" ? (
+                <motion.div
+                  key="interests"
+                  custom={direction}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  variants={variants}
+                  transition={sharedTransition}
+                >
+                  <InterestsScreen />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="links"
+                  custom={direction}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  variants={variants}
+                  transition={sharedTransition}
+                >
+                  <LinksScreen />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </FormProvider>
       </DialogContent>
     </Dialog>
   );

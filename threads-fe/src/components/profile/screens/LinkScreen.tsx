@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Link as LinkIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useFormContext } from "react-hook-form";
+import { AddScreen, EditScreen } from "./sub-screens/SubScreens";
 
 export default function LinksScreen() {
   const { screen, direction, go } = useScreen();
@@ -106,55 +107,6 @@ export default function LinksScreen() {
     </div>
   );
 
-  const AddScreen = () => (
-    <div className="p-5">
-      <div className="border border-gray-200 rounded-xl p-5 space-y-5">
-        <input
-          type="text"
-          className="focus:outline-none w-full"
-          placeholder="URL"
-          {...register("link")}
-          onBlur={handleFetchFavicon}
-        />
-        <input
-          type="text"
-          className="focus:outline-none w-full"
-          placeholder="Title (optional)"
-          {...register("linkTitle")}
-        />
-      </div>
-    </div>
-  );
-
-  const EditScreen = () => (
-    <div className="p-5">
-      <div className="border border-gray-200 rounded-xl p-5 space-y-5 mb-5">
-        <input
-          type="text"
-          className="focus:outline-none w-full"
-          placeholder="URL"
-          {...register("link")}
-          onBlur={handleFetchFavicon}
-        />
-        <input
-          type="text"
-          className="focus:outline-none w-full"
-          placeholder="Title (optional)"
-          {...register("linkTitle")}
-        />
-      </div>
-      <div className="border border-gray-200 rounded-2xl py-3 px-5">
-        <button
-          type="button"
-          className="text-red-500 cursor-pointer w-full text-left"
-          onClick={handleRemoveLink}
-        >
-          <span>Remove link</span>
-        </button>
-      </div>
-    </div>
-  );
-
   return (
     <div className="relative overflow-hidden">
       <AnimatePresence mode="wait" custom={direction} initial={false}>
@@ -180,7 +132,11 @@ export default function LinksScreen() {
             variants={variants}
             transition={sharedTransition}
           >
-            <AddScreen />
+            <AddScreen
+              register={register}
+              handleFetchFavicon={handleFetchFavicon}
+              handleRemoveLink={handleRemoveLink}
+            />
           </motion.div>
         ) : (
           <motion.div
@@ -192,7 +148,11 @@ export default function LinksScreen() {
             variants={variants}
             transition={sharedTransition}
           >
-            <EditScreen />
+            <EditScreen
+              register={register}
+              handleFetchFavicon={handleFetchFavicon}
+              handleRemoveLink={handleRemoveLink}
+            />
           </motion.div>
         )}
       </AnimatePresence>

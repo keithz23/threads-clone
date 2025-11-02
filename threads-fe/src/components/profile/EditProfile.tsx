@@ -127,7 +127,7 @@ export default function EditProfile({
       bio: data.bio.trim(),
       interests: data.interests,
       website: website?.trim?.() ?? "",
-      link: data.link.trim(),
+      link: data.link.trim() ?? "",
       linkTitle: data.linkTitle.trim(),
       isPrivate,
     });

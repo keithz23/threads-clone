@@ -20,6 +20,9 @@ import { ERROR_MESSAGES } from 'src/common/constants/error-message';
 import { MailService } from 'src/mail/mail.service';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { PasswordResetToken } from '@prisma/client';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ProfileUpdatedEvent } from 'src/profile-realtime/profile-updated.event';
+import { RealTimeGateWay } from 'src/realtime/realtime.gateway';
 
 const RESET_TTL_MINUTES = 30;
 const RESET_TOKEN_BYTES = 32; // 256-bit
@@ -31,6 +34,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private mailService: MailService,
+    private realtimeGateway: RealTimeGateWay,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
@@ -206,7 +210,10 @@ export class AuthService {
       data: updateDto,
     });
 
-    return this.transformUser(user);
+    const profile = await this.transformUser(user);
+    this.realtimeGateway.emitProfileUpdate(userId, profile);
+
+    return profile;
   }
 
   async changePassword(

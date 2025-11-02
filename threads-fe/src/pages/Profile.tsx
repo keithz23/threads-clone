@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import EditProfile from "@/components/profile/EditProfile";
 import { useAuth } from "@/hooks/useAuth";
 import type { UpdateProfileDto } from "@/interfaces/auth/profile.interface";
+import { useProfileRealtime } from "@/hooks/useProfile";
 
 type TabKey = "threads" | "replies" | "media" | "reposts";
 
@@ -35,9 +36,23 @@ function normalizeUrl(url?: string) {
   }
 }
 
+function pickToken(userObj: any): string | undefined {
+  return (
+    userObj?.accessToken ||
+    userObj?.token ||
+    userObj?.data?.accessToken ||
+    userObj?.data?.token ||
+    undefined
+  );
+}
+
 export default function Profile() {
   const [open, setOpen] = useState(false);
   const { user, update } = useAuth();
+  const me = user?.data;
+  const token = useMemo(() => pickToken(user), [user]);
+  const profileId = me?.id as string | undefined;
+  useProfileRealtime(me, profileId, token);
 
   const profile = useMemo(() => {
     const d = user?.data ?? {};
@@ -54,7 +69,7 @@ export default function Profile() {
       : [];
 
     return {
-      displayName: (d.displayName ?? "").trim(),
+      displayName: d.displayName.trim(),
       username: (d.username ?? "").trim(),
       bio: (d.bio ?? "").trim(),
       interests: interestsClean,

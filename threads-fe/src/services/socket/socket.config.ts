@@ -25,6 +25,18 @@ export const SOCKET_CONFIG = {
       autoConnect: false,
     },
   },
+  REALTIME: {
+    url: URL,
+    namespace: "/rt",
+    withCredentials: true,
+    options: {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+      autoConnect: false,
+    },
+  },
 };
 
 export const MESSAGE_EVENTS = {

@@ -7,6 +7,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { RefreshJwtStrategy } from './strategies/jwt-refresh.strategy';
 import { MailModule } from 'src/mail/mail.module';
+import { RealTimeGateWay } from 'src/realtime/realtime.gateway';
 
 @Module({
   imports: [
@@ -25,6 +26,12 @@ import { MailModule } from 'src/mail/mail.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PrismaService, JwtStrategy, RefreshJwtStrategy],
+  providers: [
+    AuthService,
+    PrismaService,
+    JwtStrategy,
+    RefreshJwtStrategy,
+    RealTimeGateWay,
+  ],
 })
 export class AuthModule {}

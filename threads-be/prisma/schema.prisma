@@ -12,17 +12,20 @@ datasource db {
 // ============================================
 
 model User {
-  id           String  @id @default(cuid())
-  username     String  @unique
-  email        String  @unique
-  passwordHash String  @map("password_hash")
-  displayName  String? @map("display_name")
-  bio          String? @db.Text
-  avatarUrl    String? @map("avatar_url")
-  coverUrl     String? @map("cover_url")
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String?  @map("display_name")
+  bio          String?  @db.Text
+  avatarUrl    String?  @map("avatar_url")
+  coverUrl     String?  @map("cover_url")
+  link         String?
+  linkTitle    String?  @map("link_title")
+  interests    String[]
   website      String?
   location     String?
-  phoneNumber  String? @unique @map("phone_number")
+  phoneNumber  String?  @unique @map("phone_number")
 
   // Status
   verified   Boolean   @default(false)

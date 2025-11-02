@@ -201,7 +201,7 @@ export class AuthController {
     }
 
     // Clear cookie from client
-    response.clearCookie('acccessToken', { path: '/' });
+    response.clearCookie('accessToken', { path: '/' });
     response.clearCookie('refreshToken', { path: '/api/v1/auth' });
 
     return { message: 'Logged out successfully' };

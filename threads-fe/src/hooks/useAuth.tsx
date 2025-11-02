@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
 import { AuthService } from "../services/auth/auth.service";
 import type { LoginDto } from "../interfaces/auth/login.interface";
 import type { RegisterDto } from "../interfaces/auth/register.interface";
 import type { ForgotPasswordDto } from "../interfaces/auth/forgot-password.interface";
 import type { ResetPasswordDto } from "../interfaces/auth/reset-password.interface";
+import { useToast } from "../components/Toast";
+import type { UpdateProfileDto } from "@/interfaces/auth/profile.interface";
 
 function extractErrMsg(err: unknown): string {
   const anyErr = err as any;
@@ -17,6 +18,7 @@ function extractErrMsg(err: unknown): string {
 
 export function useAuth() {
   const qc = useQueryClient();
+  const toast = useToast();
 
   const meQuery = useQuery({
     queryKey: ["me"],
@@ -44,12 +46,10 @@ export function useAuth() {
       return AuthService.login(loginDto);
     },
     onSuccess: async () => {
-      toast.dismiss();
       await qc.invalidateQueries({ queryKey: ["me"] });
       toast.success("Logged in successfully.");
     },
     onError: (err) => {
-      toast.dismiss();
       toast.error(extractErrMsg(err));
     },
   });
@@ -59,12 +59,10 @@ export function useAuth() {
       return AuthService.register(registerDto);
     },
     onSuccess: async () => {
-      toast.dismiss();
       await qc.invalidateQueries({ queryKey: ["me"] });
       toast.success("Account created. You can sign in now.");
     },
     onError: (err) => {
-      toast.dismiss();
       toast.error(extractErrMsg(err));
     },
   });
@@ -74,12 +72,10 @@ export function useAuth() {
       return AuthService.logout();
     },
     onSuccess: () => {
-      toast.dismiss();
       qc.setQueryData(["me"], null);
       toast.success("Logged out.");
     },
     onError: (err) => {
-      toast.dismiss();
       toast.error(extractErrMsg(err));
     },
   });
@@ -93,14 +89,12 @@ export function useAuth() {
       return AuthService.forgotPassword(forgotPasswordDto);
     },
     onSuccess: async () => {
-      toast.dismiss();
       await qc.invalidateQueries({ queryKey: ["me"] });
       toast.success(
         "We’ve sent you a password reset email. Please check your inbox (and spam folder)"
       );
     },
     onError: (err) => {
-      toast.dismiss();
       toast.error(extractErrMsg(err));
     },
   });
@@ -112,14 +106,29 @@ export function useAuth() {
       resetPasswordDto: ResetPasswordDto;
     }) => AuthService.resetPassword(resetPasswordDto),
     onSuccess: async () => {
-      toast.dismiss();
       await qc.invalidateQueries({ queryKey: ["me"] });
       toast.success(
         "Your password was reset successfully. Please log in again."
       );
     },
     onError: (err) => {
-      toast.dismiss();
+      toast.error(extractErrMsg(err));
+    },
+  });
+
+  const update = useMutation({
+    mutationFn: ({
+      updateProfileDto,
+    }: {
+      updateProfileDto: UpdateProfileDto;
+    }) => {
+      return AuthService.updateProfile(updateProfileDto);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["me"] });
+      toast.success("Update profile successfully");
+    },
+    onError: (err) => {
       toast.error(extractErrMsg(err));
     },
   });
@@ -135,5 +144,6 @@ export function useAuth() {
     logout,
     forgot,
     reset,
+    update,
   };
 }

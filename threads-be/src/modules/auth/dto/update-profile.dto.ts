@@ -4,8 +4,11 @@ import {
   MaxLength,
   IsUrl,
   IsBoolean,
+  IsArray,
+  ValidateIf,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 
 export class UpdateProfileDto {
   @ApiPropertyOptional({ example: 'John Doe', maxLength: 50 })
@@ -25,6 +28,14 @@ export class UpdateProfileDto {
 
   @ApiPropertyOptional({ example: 'https://example.com' })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      const v = value.trim();
+      return v === '' ? undefined : v;
+    }
+    return value;
+  })
+  @ValidateIf((o) => o.website !== undefined)
   @IsUrl()
   website?: string;
 
@@ -41,4 +52,31 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsBoolean()
   isPrivate?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  linkTitle?: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com' })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      const v = value.trim();
+      return v === '' ? undefined : v;
+    }
+    return value;
+  })
+  @ValidateIf((o) => o.link !== undefined)
+  @IsUrl()
+  link?: string;
+
+  @ApiPropertyOptional({ example: ['music', 'coding', 'chilling'] })
+  @IsArray()
+  @IsOptional()
+  interests?: string[];
 }

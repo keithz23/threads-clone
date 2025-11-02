@@ -4,14 +4,19 @@ import {
   Plus,
   Heart,
   User,
-  Pin,
   TextAlignStart,
+  ChevronRight,
 } from "lucide-react";
 import { useActive } from "../hooks/useActive";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Button } from "./ui/button";
+import { Separator } from "./ui/separator";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Sidebar() {
   const activeTab = useActive((s) => s.activeTab);
   const setActiveTab = useActive((s) => s.setActiveTab);
+  const { logout } = useAuth();
 
   const tabs = [
     { id: 1, name: "home", icon: <House size={24} /> },
@@ -19,6 +24,39 @@ export default function Sidebar() {
     { id: 3, name: "plus", icon: <Plus size={24} /> },
     { id: 4, name: "activity", icon: <Heart size={24} /> },
     { id: 5, name: "profile", icon: <User size={24} /> },
+  ];
+
+  const handleLogout = async () => {
+    await logout.mutateAsync();
+  };
+
+  const moreContent = [
+    {
+      appearance: [
+        {
+          id: 1,
+          name: "appearance",
+          displayName: "Appearance",
+          chevron: <ChevronRight />,
+        },
+        { id: 2, name: "insight", displayName: "Insight" },
+        { id: 3, name: "settings", displayName: "Settings" },
+      ],
+      feed: [
+        {
+          id: 1,
+          name: "feeds",
+          displayName: "Feeds",
+          chevron: <ChevronRight />,
+        },
+        { id: 2, name: "saved", displayName: "Saved" },
+        { id: 3, name: "liked", displayName: "Liked" },
+      ],
+      function: [
+        { id: 1, name: "reportAProblem", displayName: "Report a problem" },
+        { id: 2, name: "logout", displayName: "Logout" },
+      ],
+    },
   ];
 
   return (
@@ -64,11 +102,88 @@ export default function Sidebar() {
           {/* Pin & more */}
           <div>
             <ul>
-              <li className="hover:bg-gray-100 rounded-xl p-3 text-gray-400 cursor-pointer transition-all">
-                <Pin size={24} />
-              </li>
-              <li className="hover:bg-gray-100 rounded-xl p-3 text-gray-400 cursor-pointer transition-all">
-                <TextAlignStart size={24} />
+              <li className="rounded-xl text-gray-500">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-10 w-10 hover:bg-gray-100 cursor-pointer"
+                      aria-label="More"
+                    >
+                      <TextAlignStart size={20} />
+                    </Button>
+                  </PopoverTrigger>
+
+                  <PopoverContent
+                    className="w-56 p-1"
+                    side="bottom"
+                    align="start"
+                    sideOffset={8}
+                  >
+                    <div role="menu" aria-label="More options" className="py-1">
+                      {/* Appearance group */}
+                      <div className="px-1 py-1">
+                        {moreContent[0].appearance.map((item) => (
+                          <button
+                            key={item.id}
+                            role="menuitem"
+                            className="w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-sm hover:bg-gray-100 cursor-pointer"
+                            onClick={() => {}}
+                          >
+                            <span className="truncate">{item.displayName}</span>
+                            {item.chevron ? (
+                              <span className="shrink-0">{item.chevron}</span>
+                            ) : null}
+                          </button>
+                        ))}
+                      </div>
+
+                      <Separator className="my-1" />
+
+                      {/* Feed group */}
+                      <div className="px-1 py-1">
+                        {moreContent[0].feed.map((item) => (
+                          <button
+                            key={item.id}
+                            role="menuitem"
+                            className="w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-sm hover:bg-gray-100 cursor-pointer"
+                            onClick={() => {}}
+                          >
+                            <span className="truncate">{item.displayName}</span>
+                            {item.chevron ? (
+                              <span className="shrink-0">{item.chevron}</span>
+                            ) : null}
+                          </button>
+                        ))}
+                      </div>
+
+                      <Separator className="my-1" />
+
+                      {/* Function group */}
+                      <div className="px-1 py-1">
+                        {moreContent[0].function.map((item) => {
+                          const isLogout = item.name === "logout";
+                          return (
+                            <button
+                              key={item.id}
+                              role="menuitem"
+                              className={
+                                "w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-sm hover:bg-gray-100 cursor-pointer " +
+                                (isLogout ? "text-red-600 hover:bg-red-50" : "")
+                              }
+                              onClick={handleLogout}
+                            >
+                              <span className="truncate">
+                                {item.displayName}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </li>
             </ul>
           </div>

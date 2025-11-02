@@ -1,3 +1,4 @@
+import type { UpdateProfileDto } from "@/interfaces/auth/profile.interface";
 import { Auth } from "../../constants/auth/auth.constant";
 import type { ForgotPasswordDto } from "../../interfaces/auth/forgot-password.interface";
 import type { LoginDto } from "../../interfaces/auth/login.interface";
@@ -45,5 +46,16 @@ export const AuthService = {
 
   me: () => {
     return instance.get(Auth.ME);
+  },
+
+  updateProfile: (updateProfileDto: UpdateProfileDto) => {
+    return instance.patch(Auth.ME, {
+      displayName: updateProfileDto.displayName,
+      bio: updateProfileDto.bio,
+      link: updateProfileDto.link,
+      linkTitle: updateProfileDto.linkTitle,
+      interests: updateProfileDto.interests,
+      isPrivate: updateProfileDto.isPrivate,
+    });
   },
 };

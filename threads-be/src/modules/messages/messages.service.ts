@@ -8,10 +8,14 @@ import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Message, MessageStatus, MessageType } from '@prisma/client';
+import { MessagesGateway } from './messages.gateway';
 
 @Injectable()
 export class MessagesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly messageGateway: MessagesGateway,
+  ) {}
   /**
    * Create a new message in a conversation
    */
@@ -124,46 +128,42 @@ export class MessagesService {
 
       // Update unread counts for other participants
       const otherParticipants = participant.conversation.participants;
-
       for (const otherParticipant of otherParticipants) {
-        const isMentioned = mentions.includes(otherParticipant.userId);
-
-        await tx.conversationParticipant.update({
-          where: { id: otherParticipant.id },
-          data: {
-            unreadCount: { increment: 1 },
-            ...(isMentioned && { mentionCount: { increment: 1 } }),
+        this.messageGateway.sendToUser(
+          otherParticipant.userId,
+          'unread-count-updated',
+          {
+            conversationId: dto.conversationId,
+            unreadCount: otherParticipant.unreadCount + 1,
+            mentionCount: mentions.includes(otherParticipant.userId)
+              ? otherParticipant.mentionCount + 1
+              : otherParticipant.mentionCount,
           },
-        });
-      }
+        );
 
-      // Create attachments if media URL provided
-      if (dto.mediaUrl && this.isMediaType(messageType)) {
-        await tx.messageAttachment.create({
-          data: {
-            messageId: newMessage.id,
-            url: dto.mediaUrl,
-            fileName: this.extractFileName(dto.mediaUrl),
-            fileSize: 0, // Should be provided from upload service
-            mimeType: this.getMimeType(messageType),
-          },
-        });
+        // user mention, send notification
+        if (mentions.includes(otherParticipant.userId)) {
+          this.messageGateway.sendToUser(
+            otherParticipant.userId,
+            'mentioned-in-message',
+            {
+              messageId: message.id,
+              conversationId: dto.conversationId,
+              sender: message.sender,
+              content: message.content,
+            },
+          );
+        }
       }
 
       return newMessage;
     });
 
-    // 7. TODO: Emit WebSocket event for real-time updates
-    // this.eventEmitter.emit('message.created', {
-    //   conversationId: dto.conversationId,
-    //   message,
-    // });
-
-    // 8. TODO: Create notification for mentioned users
-    // await this.createMentionNotifications(mentions, message);
-
-    // 9. TODO: Send push notifications to offline users
-    // await this.sendPushNotifications(otherParticipants, message);
+    this.messageGateway.sendtoConversation(
+      dto.conversationId,
+      'receive-message',
+      message,
+    );
 
     return message;
   }

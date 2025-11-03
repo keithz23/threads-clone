@@ -18,10 +18,22 @@ class SocketService {
       return existing;
     }
 
-    const { url, namespace, options } = SOCKET_CONFIG[ns];
+    const config = SOCKET_CONFIG[ns];
+    if (!config) {
+      console.error(`[${ns}] SOCKET_CONFIG missing for namespace`);
+      return null as any;
+    }
+
+    const { url, namespace, options } = config;
+
+    if (!url || !namespace) {
+      console.error(`[${ns}] Invalid config:`, { url, namespace });
+      return null as any;
+    }
+
     const base: Partial<ManagerOptions & SocketOptions> = {
-      ...options,
-      transports: ["websocket"],
+      ...(options || {}),
+      transports: ["websocket", "polling"],
       autoConnect: true,
       withCredentials: true,
       reconnection: true,
@@ -32,7 +44,10 @@ class SocketService {
       query: { userId },
     };
 
-    const sock = io(`${url}${namespace}`, base);
+    const fullUrl = `${url}${namespace}`;
+    console.log(`[${ns}] Connecting to: ${fullUrl}`); // DEBUG
+
+    const sock = io(fullUrl, base);
     this.wireCommonListeners(sock, ns);
     this.sockets[ns] = sock;
 
@@ -55,7 +70,7 @@ class SocketService {
               token: newToken,
             };
             if (!socket.connected) {
-              console.log(`[${ns}] 🔌 Reconnecting with new token...`);
+              console.log(`[${ns}] Reconnecting with new token...`);
               socket.connect();
             }
           }

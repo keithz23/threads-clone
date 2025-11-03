@@ -14,16 +14,11 @@ export function useProfileRealtime(
   const handleProfileUpdate = useCallback(
     ({ profile: updatedProfile }: any) => {
       if (!updatedProfile?.id) return;
-
       startTransition(() => {
         qc.setQueryData(["me"], (old: any) => {
           if (!old?.data?.id || old.data.id !== updatedProfile.id) return old;
-          return {
-            ...old,
-            data: { ...(old.data ?? {}), ...updatedProfile },
-          };
+          return { ...old, data: { ...(old.data ?? {}), ...updatedProfile } };
         });
-
         if (profileId && profileId === updatedProfile.id) {
           qc.setQueryData(["profile", profileId], (old: any) => ({
             ...(old ?? {}),
@@ -36,51 +31,47 @@ export function useProfileRealtime(
   );
 
   useEffect(() => {
-    if (!me?.id || !profileId) return;
+    if (!me?.id) return;
 
-    let socket = socketRef.current;
-    if (!socket) {
-      socket = socketService.initRealtimeSocket(me.id, token, { profileId });
-      socketRef.current = socket;
-
-      // Log & basic lifecycle
-      const onConnect = () => {
-        if (joinedRef.current !== profileId) {
-          socket.emit("profile.join", { id: profileId });
-          joinedRef.current = profileId;
-        }
-      };
-      const onDisconnect = () => {};
-      const onConnectError = (err: any) => {
-        console.error("Realtime connect_error:", err?.message || err);
-      };
-
-      socket.on("connect", onConnect);
-      socket.on("disconnect", onDisconnect);
-      socket.on("connect_error", onConnectError);
-
-      socket.on("profile.updated", handleProfileUpdate);
-
-      return () => {
-        socket.off("profile.updated", handleProfileUpdate);
-        socket.off("connect");
-        socket.off("disconnect");
-        socket.off("connect_error");
-        socketRef.current = null;
-        joinedRef.current = null;
-      };
-    } else {
-      if (joinedRef.current !== profileId) {
-        socket.emit("profile.join", { id: profileId });
-        joinedRef.current = profileId;
-      }
-
-      socket.off("profile.updated", handleProfileUpdate);
-      socket.on("profile.updated", handleProfileUpdate);
-
-      return () => {
-        socket.off("profile.updated", handleProfileUpdate);
-      };
+    const existingSocket = socketService.getRealtimeSocket();
+    if (existingSocket?.connected) {
+      socketRef.current = existingSocket;
+      return;
     }
-  }, [me?.id, profileId, token, handleProfileUpdate]);
+
+    if (!socketRef.current) {
+      const s = socketService.initRealtimeSocket(me.id, token, {
+        profileId: profileId || "",
+      });
+      socketRef.current = s;
+
+      s.on("connect", () => {});
+      s.on("disconnect", () => {});
+      s.on("connect_error", (err: any) =>
+        console.error("Realtime connect_error:", err?.message || err)
+      );
+      s.on("profile.updated", handleProfileUpdate);
+    }
+
+    return () => {
+      const s = socketRef.current;
+      if (!s) return;
+      s.off("profile.updated", handleProfileUpdate);
+      s.off("connect");
+      s.off("disconnect");
+      s.off("connect_error");
+
+      socketRef.current = null;
+      joinedRef.current = null;
+    };
+  }, [me?.id, token]);
+
+  useEffect(() => {
+    const s = socketRef.current;
+    if (!s || !profileId) return;
+    if (joinedRef.current !== profileId) {
+      s.emit("profile.join", { id: profileId });
+      joinedRef.current = profileId;
+    }
+  }, [profileId]);
 }

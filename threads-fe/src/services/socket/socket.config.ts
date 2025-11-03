@@ -11,7 +11,7 @@ export const SOCKET_CONFIG = {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
-      autoConnect: false, // Connect manually
+      autoConnect: false,
     },
   },
   NOTIFICATIONS: {
@@ -28,7 +28,6 @@ export const SOCKET_CONFIG = {
   REALTIME: {
     url: URL,
     namespace: "/rt",
-    withCredentials: true,
     options: {
       transports: ["websocket", "polling"],
       reconnection: true,

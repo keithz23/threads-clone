@@ -1,4 +1,3 @@
-// socket.service.ts
 import { io } from "socket.io-client";
 import type { Socket, ManagerOptions, SocketOptions } from "socket.io-client";
 import { SOCKET_CONFIG } from "./socket.config";

@@ -7,6 +7,6 @@ import { MessagesHttpController } from './message.controller';
 @Module({
   controllers: [MessagesHttpController],
   providers: [MessagesGateway, MessagesService, PrismaService],
-  exports: [MessagesGateway],
+  exports: [MessagesGateway, MessagesService],
 })
 export class MessagesModule {}

@@ -28,12 +28,10 @@ function extractToken(client: SocketLike): string | undefined {
   const rawCookie = hs?.headers?.cookie as string | undefined;
   if (rawCookie) {
     const cookies = cookie.parse(rawCookie);
-    // tránh lấy nhầm refresh_token
-    const token = cookies['access_token'] || cookies['jwt'] || cookies['token'];
+    const token = cookies['accessToken'] || cookies['jwt'] || cookies['token'];
     if (token) return token;
   }
 
-  // 4) Fallback: query.token (ít khuyến nghị)
   const fromQuery = hs?.query?.token as string | undefined;
   if (typeof fromQuery === 'string' && fromQuery) return fromQuery;
 

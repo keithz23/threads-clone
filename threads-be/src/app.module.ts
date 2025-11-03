@@ -36,6 +36,10 @@ import { MailModule } from './mail/mail.module';
 import { ConversationsModule } from './modules/conversations/conversations.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { SocketModule } from './socket/socket.module';
+import { MessagesGateway } from './modules/messages/messages.gateway';
+import { RealTimeGateWay } from './realtime/realtime.gateway';
+import { NotificationsGateway } from './modules/notifications/notifications.gateway';
 
 @Module({
   imports: [
@@ -99,6 +103,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     BlocksModule,
     EventEmitterModule.forRoot(),
     RealtimeModule,
+    SocketModule,
   ],
   providers: [
     // Global guards

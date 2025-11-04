@@ -6,10 +6,10 @@ import {
   User,
   TextAlignStart,
   ChevronRight,
+  Send,
 } from "lucide-react";
 import { useActive } from "../hooks/useActive";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -61,7 +61,7 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className="hidden md:flex w-20 h-screen fixed left-0 top-0">
+      <aside className="hidden md:flex w-20 h-screen fixed left-0 top-0 shadow-md">
         <div className="flex flex-col items-center justify-between gap-10 h-full p-4">
           {/* Logo */}
           <div aria-label="Threads logo">
@@ -101,18 +101,22 @@ export default function Sidebar() {
 
           {/* Pin & more */}
           <div>
-            <ul>
-              <li className="rounded-xl text-gray-500">
+            <ul className="space-y-5">
+              <li
+                className={`rounded-xl p-3 cursor-pointer transition-all
+                    ${
+                      activeTab === "messages"
+                        ? "bg-gray-100 text-black"
+                        : "text-gray-400 hover:bg-gray-100"
+                    }`}
+                onClick={() => setActiveTab("messages")}
+              >
+                <Send size={24} />
+              </li>
+              <li className="rounded-xl p-3 cursor-pointer transition-all text-gray-400 hover:text-black hover:bg-gray-100">
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-10 w-10 hover:bg-gray-100 cursor-pointer"
-                      aria-label="More"
-                    >
-                      <TextAlignStart size={20} />
-                    </Button>
+                    <TextAlignStart size={24} />
                   </PopoverTrigger>
 
                   <PopoverContent

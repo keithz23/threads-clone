@@ -45,7 +45,6 @@ class SocketService {
     };
 
     const fullUrl = `${url}${namespace}`;
-    console.log(`[${ns}] Connecting to: ${fullUrl}`); // DEBUG
 
     const sock = io(fullUrl, base);
     this.wireCommonListeners(sock, ns);

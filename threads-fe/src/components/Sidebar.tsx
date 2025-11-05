@@ -12,6 +12,7 @@ import { useActive } from "../hooks/useActive";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Separator } from "./ui/separator";
 import { useAuth } from "@/hooks/useAuth";
+import { Badge } from "./ui/badge";
 
 export default function Sidebar() {
   const activeTab = useActive((s) => s.activeTab);
@@ -22,7 +23,19 @@ export default function Sidebar() {
     { id: 1, name: "home", icon: <House size={24} /> },
     { id: 2, name: "search", icon: <Search size={24} /> },
     { id: 3, name: "plus", icon: <Plus size={24} /> },
-    { id: 4, name: "activity", icon: <Heart size={24} /> },
+    {
+      id: 4,
+      name: "activity",
+      icon: (
+        <div className="relative inline-block">
+          <Heart size={24} />
+          <Badge
+            variant="destructive"
+            className="absolute -top-1 -right-1 h-2 w-2 p-0 flex items-center justify-center"
+          />
+        </div>
+      ),
+    },
     { id: 5, name: "profile", icon: <User size={24} /> },
   ];
 
@@ -111,7 +124,13 @@ export default function Sidebar() {
                     }`}
                 onClick={() => setActiveTab("messages")}
               >
-                <Send size={24} />
+                <div className="relative inline-block">
+                  <Send size={24} />
+                  <Badge
+                    variant="destructive"
+                    className="absolute -top-1 -right-1 h-2 w-2 p-0 flex items-center justify-center"
+                  />
+                </div>
               </li>
               <li className="rounded-xl p-3 cursor-pointer transition-all text-gray-400 hover:text-black hover:bg-gray-100">
                 <Popover>

@@ -9,7 +9,6 @@ import ResetPassword from "./pages/ResetPassword";
 import Forgot from "./pages/Forgot";
 import { useAuth } from "./hooks/useAuth";
 import { SocketProvider } from "./contexts/SocketContext";
-import Messages from "./pages/Messages";
 
 function App() {
   const { user } = useAuth();
@@ -59,15 +58,6 @@ function App() {
             <PublicRoute>
               <ResetPassword />
             </PublicRoute>
-          }
-        />
-
-        <Route
-          path="/messages"
-          element={
-            <ProtectedRoute>
-              <Messages />
-            </ProtectedRoute>
           }
         />
 

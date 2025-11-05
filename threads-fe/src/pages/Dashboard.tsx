@@ -14,7 +14,7 @@ export default function Dashboard() {
   const isMessages = activeTab === "messages";
 
   const containerClass =
-    "grid grid-cols-1 min-h-screen " +
+    "grid grid-cols-1 min-h-[100dvh] " +
     (isMessages
       ? "md:[grid-template-columns:80px_1fr]"
       : "md:[grid-template-columns:80px_1fr_220px]");
@@ -28,13 +28,13 @@ export default function Dashboard() {
 
   return (
     <div className={containerClass}>
-      {/* Left */}
-      <aside className="contents md:block">
+      <aside className={isMessages ? "hidden md:block" : "contents md:block"}>
         <Sidebar />
       </aside>
 
       {/* Middle */}
-      <main className="col-span-1 flex flex-col h-screen overflow-hidden">
+      <main className="col-span-1 flex flex-col h-[100dvh] overflow-hidden">
+        {/* Header */}
         {!isMessages && (
           <div className="w-full p-4 flex-shrink-0 hidden md:flex">
             <div className="flex items-center justify-center w-full">
@@ -45,7 +45,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Nội dung */}
+        {/* Content */}
         {isMessages ? (
           <Messages />
         ) : (

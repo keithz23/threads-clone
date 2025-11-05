@@ -34,6 +34,12 @@ import { RepostsModule } from './modules/reposts/reposts.module';
 import { BlocksModule } from './modules/blocks/blocks.module';
 import { MailModule } from './mail/mail.module';
 import { ConversationsModule } from './modules/conversations/conversations.module';
+import { RealtimeModule } from './realtime/realtime.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { SocketModule } from './socket/socket.module';
+import { MessagesGateway } from './modules/messages/messages.gateway';
+import { RealTimeGateWay } from './realtime/realtime.gateway';
+import { NotificationsGateway } from './modules/notifications/notifications.gateway';
 
 @Module({
   imports: [
@@ -95,6 +101,9 @@ import { ConversationsModule } from './modules/conversations/conversations.modul
     RepostsModule,
     ConversationsModule,
     BlocksModule,
+    EventEmitterModule.forRoot(),
+    RealtimeModule,
+    SocketModule,
   ],
   providers: [
     // Global guards

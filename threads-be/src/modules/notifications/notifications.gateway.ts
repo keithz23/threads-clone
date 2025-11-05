@@ -25,7 +25,7 @@ export class NotificationsGateway
   server: Server;
 
   private readonly logger = new Logger(NotificationsGateway.name);
-  private connectedUsers = new Map<string, string>(); // userId -> socketId
+  private connectedUsers = new Map<string, string>();
 
   constructor(private readonly notificationsService: NotificationsService) {}
 

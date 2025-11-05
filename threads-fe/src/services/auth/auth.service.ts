@@ -33,7 +33,6 @@ export const AuthService = {
   },
 
   resetPassword: (resetPasswordDto: ResetPasswordDto) => {
-    console.log(resetPasswordDto);
     return instance.post(Auth.RESET, {
       token: resetPasswordDto.token,
       newPassword: resetPasswordDto.newPassword,

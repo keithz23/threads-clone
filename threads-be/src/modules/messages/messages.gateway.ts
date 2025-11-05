@@ -8,15 +8,16 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { MessagesService } from './messages.service';
-import { Logger } from '@nestjs/common';
+import { Logger, UseGuards } from '@nestjs/common';
+import { WsJwtGuard } from 'src/common/guards/ws-jwt.guard';
 
+@UseGuards(WsJwtGuard)
 @WebSocketGateway({
   cors: {
     origin: process.env.CLIENT_URL || 'http://localhost:3000',
     credentials: true,
   },
-  namespace: '/messages', // Namespace for messages
+  namespace: '/messages',
 })
 export class MessagesGateway
   implements OnGatewayConnection, OnGatewayDisconnect
@@ -25,20 +26,26 @@ export class MessagesGateway
   server: Server;
 
   private readonly logger = new Logger(MessagesGateway.name);
-  private onlineUsers = new Map<string, string>(); // userId -> socketId
-
-  constructor(private readonly messagesService: MessagesService) {}
+  private onlineUsers = new Map<string, string>();
 
   handleConnection(client: Socket) {
-    const userId = client.handshake.query.userId as string;
+    const userId =
+      (client.data?.user?.sub as string) ||
+      (client.data?.user?.id as string) ||
+      (client.handshake.auth?.userId as string) ||
+      (client.handshake.query?.userId as string) ||
+      null;
 
-    if (userId) {
-      this.onlineUsers.set(userId, client.id);
-      this.logger.log(`User [${userId}] connected to messages`);
-
-      // Broadcast online users
-      this.server.emit('online-users', Array.from(this.onlineUsers.keys()));
+    if (!userId) {
+      this.logger.error('No userId, disconnecting');
+      client.disconnect(true);
+      return;
     }
+
+    this.onlineUsers.set(userId, client.id);
+    this.logger.log(`User [${userId}] connected`);
+
+    this.server.emit('online-users', Array.from(this.onlineUsers.keys()));
   }
 
   handleDisconnect(client: Socket) {
@@ -47,7 +54,7 @@ export class MessagesGateway
     if (userId) {
       this.onlineUsers.delete(userId);
       this.server.emit('online-users', Array.from(this.onlineUsers.keys()));
-      this.logger.log(`User [${userId}] disconnected from messages`);
+      this.logger.log(`User [${userId}] disconnected`);
     }
   }
 
@@ -55,106 +62,126 @@ export class MessagesGateway
     return (client.handshake.query.userId as string) || null;
   }
 
-  // ===== SEND MESSAGE =====
+  @SubscribeMessage('join-conversation')
+  async handleJoinConversation(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const roomName = `conversation:${data.conversationId}`;
+    client.join(roomName);
+
+    this.logger.log(
+      `User [${this.getUserIdFromSocket(client)}] joined ${roomName}`,
+    );
+
+    return { joined: true, conversationId: data.conversationId };
+  }
+
   @SubscribeMessage('send-message')
   async handleSendMessage(
     @MessageBody()
     data: { conversationId: string; content: string; replyToId?: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const senderId = this.getUserIdFromSocket(client) || '';
+    const senderId = this.getUserIdFromSocket(client);
 
-    // 1. Save message in database
-    const savedMessage = await this.messagesService.createMessage({
-      senderId,
-      conversationId: data.conversationId,
-      content: data.content,
-      replyToId: String(data.replyToId),
-    });
-
-    // 2. Gửi đến người nhận qua socket
-    const receiverSocketId = this.onlineUsers.get(data.conversationId);
-    if (receiverSocketId) {
-      this.server.to(receiverSocketId).emit('receive-message', savedMessage);
+    if (!senderId) {
+      return { success: false, error: 'User not authenticated' };
     }
 
-    // 3. Confirm cho người gửi
-    return { success: true, message: savedMessage };
+    // try {
+    //   const savedMessage = await this.messagesService.createMessage({
+    //     senderId,
+    //     conversationId: data.conversationId,
+    //     content: data.content,
+    //     replyToId: data.replyToId,
+    //   });
+
+    //   // Redis adapter auto broadcast across all servers
+    //   const roomName = `conversation:${data.conversationId}`;
+    //   this.server.to(roomName).emit('receive-message', savedMessage);
+
+    //   return { success: true };
+    // } catch (error) {
+    //   this.logger.error('Error sending message:', error);
+    //   return { success: false, error: 'Failed to send message' };
+    // }
   }
 
-  // ===== TYPING INDICATOR =====
   @SubscribeMessage('typing')
   handleTyping(
-    @MessageBody() data: { conversationId: string; replyToId: string },
+    @MessageBody() data: { conversationId: string },
     @ConnectedSocket() client: Socket,
   ) {
     const senderId = this.getUserIdFromSocket(client);
-    const receiverSocketId = this.onlineUsers.get(data.conversationId);
+    const roomName = `conversation:${data.conversationId}`;
 
-    if (receiverSocketId) {
-      this.server.to(receiverSocketId).emit('user-typing', {
-        senderId,
-        replyToId: data.replyToId,
-      });
-    }
+    client.to(roomName).emit('user-typing', {
+      senderId,
+      conversationId: data.conversationId,
+    });
   }
 
   @SubscribeMessage('stop-typing')
   handleStopTyping(
-    @MessageBody() data: { conversationId: string; replyToId: string },
+    @MessageBody() data: { conversationId: string },
     @ConnectedSocket() client: Socket,
   ) {
     const senderId = this.getUserIdFromSocket(client);
-    const receiverSocketId = this.onlineUsers.get(data.conversationId);
+    const roomName = `conversation:${data.conversationId}`;
 
-    if (receiverSocketId) {
-      this.server.to(receiverSocketId).emit('user-stop-typing', {
-        senderId,
-        replyToId: data.replyToId,
-      });
-    }
+    client.to(roomName).emit('user-stop-typing', {
+      senderId,
+      conversationId: data.conversationId,
+    });
   }
 
-  // ===== JOIN/LEAVE CHAT =====
-  @SubscribeMessage('join-chat')
-  handleJoinChat(
-    @MessageBody() data: { conversationId: string },
-    @ConnectedSocket() client: Socket,
-  ) {
-    client.join(`chat-${data.conversationId}`);
-    return { joined: true, conversationId: data.conversationId };
+  sendtoConversation(conversationId: string, event: string, data: any) {
+    const roomName = `conversation:${conversationId}`;
+    this.server.to(roomName).emit(event, data);
+    this.logger.log(`Sent ${event} to ${roomName}`);
   }
 
-  @SubscribeMessage('leave-chat')
-  handleLeaveChat(
-    @MessageBody() data: { conversationId: string },
-    @ConnectedSocket() client: Socket,
-  ) {
-    client.leave(`chat-${data.conversationId}`);
-    return { left: true, conversationId: data.conversationId };
-  }
-
-  // ===== MESSAGE READ =====
-  @SubscribeMessage('mark-read')
-  async handleMarkRead(
-    @MessageBody() data: { messageIds: string[] },
-    @ConnectedSocket() client: Socket,
-  ) {
-    const userId = this.getUserIdFromSocket(client);
-    await this.messagesService.markAsRead(data.messageIds, String(userId));
-
-    return { success: true };
-  }
-
-  // Utility: Gửi message từ service khác
-  sendMessageToUser(userId: string, event: string, data: any) {
+  sendToUser(userId: string, event: string, data: any) {
     const socketId = this.onlineUsers.get(userId);
     if (socketId) {
       this.server.to(socketId).emit(event, data);
+      this.logger.log(`Sent ${event} to user [${userId}]`);
+    } else {
+      this.logger.warn(`User [${userId}] is not online`);
     }
+  }
+
+  broadcastToAll(event: string, data: any) {
+    this.server.emit(event, data);
   }
 
   isUserOnline(userId: string): boolean {
     return this.onlineUsers.has(userId);
+  }
+
+  getOnlineUsersInConversation(conversationId: string): string[] {
+    const roomName = `conversation:${conversationId}`;
+    const room = this.server.sockets.adapter.rooms.get(roomName);
+
+    if (!room) return [];
+
+    const onlineUserIds: string[] = [];
+    for (const [userId, socketId] of this.onlineUsers.entries()) {
+      if (room.has(socketId)) {
+        onlineUserIds.push(userId);
+      }
+    }
+    return onlineUserIds;
+  }
+
+  broadcastTyping(conversationId: string, userId: string, isTyping: boolean) {
+    const roomName = `conversation:${conversationId}`;
+    const event = isTyping ? 'user-typing' : 'user-stop-typing';
+
+    this.server.to(roomName).emit(event, {
+      userId,
+      conversationId,
+    });
   }
 }

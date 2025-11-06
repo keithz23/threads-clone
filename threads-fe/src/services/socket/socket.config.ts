@@ -39,20 +39,20 @@ export const SOCKET_CONFIG = {
 };
 
 export const MESSAGE_EVENTS = {
-  // Emit
-  SEND_MESSAGE: "send-message",
-  TYPING: "typing",
-  STOP_TYPING: "stop-typing",
-  JOIN_CHAT: "join-chat",
-  LEAVE_CHAT: "leave-chat",
-  MARK_READ: "mark-read",
+  JOIN_CONVERSATION: "conversation:join",
+  LEAVE_CONVERSATION: "conversation:leave",
+  SEND_MESSAGE: "message:send",
+  UPDATE_MESSAGE: "message:update",
+  DELETE_MESSAGE: "message:delete",
+  TYPING: "message:typing",
+  MARK_AS_READ: "message:read",
 
-  // Listen
-  RECEIVE_MESSAGE: "receive-message",
-  USER_TYPING: "user-typing",
-  USER_STOP_TYPING: "user-stop-typing",
-  ONLINE_USERS: "online-users",
-  MESSAGE_READ: "message-read",
+  NEW_MESSAGE: "message:new",
+  MESSAGE_UPDATED: "message:updated",
+  MESSAGE_DELETED: "message:deleted",
+  MESSAGE_READ: "message:read:ack",
+  ONLINE_USERS: "users:online",
+  ERROR: "error",
 } as const;
 
 export const NOTIFICATION_EVENTS = {

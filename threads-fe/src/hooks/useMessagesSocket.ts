@@ -1,287 +1,305 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Socket } from "socket.io-client";
+import { useEffect, useCallback, useRef } from "react";
 import socketService from "@/services/socket/socket.service";
-import { MESSAGE_EVENTS as EV } from "@/services/socket/socket.config";
+import { MESSAGE_EVENTS } from "@/services/socket/socket.config";
+import type { Socket } from "socket.io-client";
 
-export type MessagePayload = {
+export interface Message {
   id: string;
   conversationId: string;
-  fromUserId: string;
-  text?: string;
-  attachments?: Array<{
-    id?: string;
-    url: string;
-    type: "image" | "video" | "file";
-    name?: string;
-    size?: number;
-  }>;
-  createdAt: string; // ISO
-  updatedAt?: string; // ISO
-  tempId?: string; // for optimistic UI
+  senderId: string;
+  content: string;
+  type: "text" | "image" | "file" | "video" | "audio";
+  createdAt: string;
+  updatedAt?: string;
   metadata?: Record<string, any>;
-};
+}
 
-type UseMessageSocketOptions = {
-  currentUserId: string;
-  conversationId?: string;
-  autoJoin?: boolean;
-  socketOverride?: Socket | null;
-};
+export interface SendMessagePayload {
+  conversationId: string;
+  content: string;
+  type?: Message["type"];
+  metadata?: Record<string, any>;
+}
 
-export function useMessageSocket(opts: UseMessageSocketOptions) {
+export interface TypingIndicator {
+  conversationId: string;
+  userId: string;
+  isTyping: boolean;
+}
+
+export interface MessageReadPayload {
+  conversationId: string;
+  messageId: string;
+  userId: string;
+}
+
+// Hook options
+interface UseMessageSocketOptions {
+  onNewMessage?: (message: Message) => void;
+  onMessageUpdated?: (message: Message) => void;
+  onMessageDeleted?: (messageId: string) => void;
+  onTyping?: (data: TypingIndicator) => void;
+  onMessageRead?: (data: MessageReadPayload) => void;
+  onError?: (error: any) => void;
+  enabled?: boolean;
+}
+
+export const useMessageSocket = (options: UseMessageSocketOptions = {}) => {
   const {
-    currentUserId,
-    conversationId,
-    autoJoin = true,
-    socketOverride,
-  } = opts;
+    onNewMessage,
+    onMessageUpdated,
+    onMessageDeleted,
+    onTyping,
+    onMessageRead,
+    onError,
+    enabled = true,
+  } = options;
 
-  const socket: Socket | null =
-    socketOverride ?? socketService.getMessageSocket();
+  const socketRef = useRef<Socket | null>(null);
 
-  const [isConnected, setIsConnected] = useState<boolean>(!!socket?.connected);
-  const [messages, setMessages] = useState<MessagePayload[]>([]);
-  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
-  const [typingUsers, setTypingUsers] = useState<Record<string, number>>({}); // userId -> lastSeen ms
-
-  const joinedConversationRef = useRef<string | null>(null);
-
-  const sortedMessages = useMemo(
-    () =>
-      [...messages].sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      ),
-    [messages]
-  );
-
-  // ----- Handlers -----
+  // Setup socket listeners
   useEffect(() => {
-    if (!socket) return;
+    if (!enabled) return;
 
-    const onConnect = () => {
-      setIsConnected(true);
-      // re-join room nếu có
-      if (joinedConversationRef.current) {
-        socket.emit(EV.JOIN_CHAT, {
-          conversationId: joinedConversationRef.current,
-          userId: currentUserId,
-        });
-      }
-    };
-    const onDisconnect = () => setIsConnected(false);
-
-    const onReceive = (msg: MessagePayload) => {
-      setMessages((prev) => {
-        // replace optimistic theo tempId nếu có
-        if (msg.tempId) {
-          const idx = prev.findIndex((m) => m.tempId === msg.tempId);
-          if (idx !== -1) {
-            const clone = [...prev];
-            clone[idx] = { ...clone[idx], ...msg, tempId: undefined };
-            return clone;
-          }
-        }
-        // tránh trùng
-        if (prev.some((m) => m.id === msg.id)) return prev;
-        return [...prev, msg];
-      });
-    };
-
-    const onUserTyping = (p: { userId: string; conversationId: string }) => {
-      if (p.userId === currentUserId) return;
-      setTypingUsers((prev) => ({ ...prev, [p.userId]: Date.now() }));
-    };
-
-    const onUserStopTyping = (p: {
-      userId: string;
-      conversationId: string;
-    }) => {
-      setTypingUsers((prev) => {
-        const clone = { ...prev };
-        delete clone[p.userId];
-        return clone;
-      });
-    };
-
-    const onOnlineUsers = (p: { users: string[] }) => {
-      setOnlineUsers(p.users || []);
-    };
-
-    const onMessageRead = (p: {
-      conversationId: string;
-      messageIds?: string[];
-      lastReadAt?: string;
-    }) => {
-      if (!p?.messageIds?.length) return;
-      setMessages((prev) =>
-        prev.map((m) =>
-          p.messageIds!.includes(m.id)
-            ? {
-                ...m,
-                metadata: {
-                  ...(m.metadata || {}),
-                  readAt: p.lastReadAt ?? new Date().toISOString(),
-                },
-              }
-            : m
-        )
-      );
-    };
-
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
-    socket.on(EV.RECEIVE_MESSAGE, onReceive);
-    socket.on(EV.USER_TYPING, onUserTyping);
-    socket.on(EV.USER_STOP_TYPING, onUserStopTyping);
-    socket.on(EV.ONLINE_USERS, onOnlineUsers);
-    socket.on(EV.MESSAGE_READ, onMessageRead);
-
-    setIsConnected(socket.connected);
-
-    return () => {
-      socket.off("connect", onConnect);
-      socket.off("disconnect", onDisconnect);
-      socket.off(EV.RECEIVE_MESSAGE, onReceive);
-      socket.off(EV.USER_TYPING, onUserTyping);
-      socket.off(EV.USER_STOP_TYPING, onUserStopTyping);
-      socket.off(EV.ONLINE_USERS, onOnlineUsers);
-      socket.off(EV.MESSAGE_READ, onMessageRead);
-    };
-  }, [socket, currentUserId]);
-
-  // Auto join/leave theo conversationId
-  useEffect(() => {
-    if (!socket || !autoJoin) return;
-
-    if (conversationId) {
-      socket.emit(EV.JOIN_CHAT, { conversationId, userId: currentUserId });
-      joinedConversationRef.current = conversationId;
+    const socket = socketService.getMessageSocket();
+    if (!socket) {
+      console.warn("Message socket not initialized");
+      return;
     }
 
-    return () => {
-      if (conversationId) {
-        socket.emit(EV.LEAVE_CHAT, { conversationId });
-        if (joinedConversationRef.current === conversationId) {
-          joinedConversationRef.current = null;
-        }
-      }
+    socketRef.current = socket;
+
+    const handleNewMessage = (message: Message) => {
+      console.log("[useMessageSocket] New message:", message);
+      onNewMessage?.(message);
     };
-  }, [socket, autoJoin, conversationId, currentUserId]);
 
-  // Auto-expire typing indicators (5s)
-  useEffect(() => {
-    const id = setInterval(() => {
-      const now = Date.now();
-      setTypingUsers((prev) => {
-        const clone = { ...prev };
-        for (const uid of Object.keys(clone)) {
-          if (now - clone[uid] > 5000) delete clone[uid];
+    const handleMessageUpdated = (message: Message) => {
+      console.log("[useMessageSocket] Message updated:", message);
+      onMessageUpdated?.(message);
+    };
+
+    const handleMessageDeleted = (data: { messageId: string }) => {
+      console.log("[useMessageSocket] Message deleted:", data.messageId);
+      onMessageDeleted?.(data.messageId);
+    };
+
+    const handleTyping = (data: TypingIndicator) => {
+      onTyping?.(data);
+    };
+
+    const handleMessageRead = (data: MessageReadPayload) => {
+      console.log("[useMessageSocket] Message read:", data);
+      onMessageRead?.(data);
+    };
+
+    const handleError = (error: any) => {
+      console.error("[useMessageSocket] Error:", error);
+      onError?.(error);
+    };
+
+    socket.on(MESSAGE_EVENTS.NEW_MESSAGE, handleNewMessage);
+    socket.on(MESSAGE_EVENTS.MESSAGE_UPDATED, handleMessageUpdated);
+    socket.on(MESSAGE_EVENTS.MESSAGE_DELETED, handleMessageDeleted);
+    socket.on(MESSAGE_EVENTS.TYPING, handleTyping);
+    socket.on(MESSAGE_EVENTS.MESSAGE_READ, handleMessageRead);
+    socket.on(MESSAGE_EVENTS.ERROR, handleError);
+
+    // Cleanup
+    return () => {
+      socket.off(MESSAGE_EVENTS.NEW_MESSAGE, handleNewMessage);
+      socket.off(MESSAGE_EVENTS.MESSAGE_UPDATED, handleMessageUpdated);
+      socket.off(MESSAGE_EVENTS.MESSAGE_DELETED, handleMessageDeleted);
+      socket.off(MESSAGE_EVENTS.TYPING, handleTyping);
+      socket.off(MESSAGE_EVENTS.MESSAGE_READ, handleMessageRead);
+      socket.off(MESSAGE_EVENTS.ERROR, handleError);
+    };
+  }, [
+    enabled,
+    onNewMessage,
+    onMessageUpdated,
+    onMessageDeleted,
+    onTyping,
+    onMessageRead,
+    onError,
+  ]);
+
+  // ===== Message Actions =====
+
+  // Join conversation room
+  const joinConversation = useCallback((conversationId: string) => {
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      console.warn("Socket not connected");
+      return;
+    }
+
+    console.log("[useMessageSocket] Joining conversation:", conversationId);
+    socket.emit(MESSAGE_EVENTS.JOIN_CONVERSATION, { conversationId });
+  }, []);
+
+  // Leave conversation room
+  const leaveConversation = useCallback((conversationId: string) => {
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      console.warn("Socket not connected");
+      return;
+    }
+
+    console.log("[useMessageSocket] Leaving conversation:", conversationId);
+    socket.emit(MESSAGE_EVENTS.LEAVE_CONVERSATION, { conversationId });
+  }, []);
+
+  // Send message
+  const sendMessage = useCallback(
+    (payload: SendMessagePayload, callback?: (response: any) => void) => {
+      const socket = socketRef.current;
+      if (!socket?.connected) {
+        console.warn("Socket not connected");
+        callback?.({ success: false, error: "Socket not connected" });
+        return;
+      }
+
+      console.log("[useMessageSocket] Sending message:", payload);
+      socket.emit(MESSAGE_EVENTS.SEND_MESSAGE, payload, (response: any) => {
+        if (response?.success) {
+          console.log("[useMessageSocket] Message sent successfully");
+        } else {
+          console.error("[useMessageSocket] Failed to send message:", response);
         }
-        return clone;
-      });
-    }, 1500);
-    return () => clearInterval(id);
-  }, []);
-
-  // ----- Public API -----
-  const join = useCallback(
-    (cid: string) => {
-      if (!socket || !cid) return;
-      socket.emit(EV.JOIN_CHAT, { conversationId: cid, userId: currentUserId });
-      joinedConversationRef.current = cid;
-    },
-    [socket, currentUserId]
-  );
-
-  const leave = useCallback(
-    (cid?: string) => {
-      if (!socket) return;
-      const rid = cid ?? joinedConversationRef.current ?? conversationId;
-      if (!rid) return;
-      socket.emit(EV.LEAVE_CHAT, { conversationId: rid });
-      if (joinedConversationRef.current === rid)
-        joinedConversationRef.current = null;
-    },
-    [socket, conversationId]
-  );
-
-  const sendText = useCallback(
-    (text: string, extra?: Partial<MessagePayload>) => {
-      if (!socket || !joinedConversationRef.current) return;
-      const tempId = `tmp_${Date.now()}_${Math.random()
-        .toString(36)
-        .slice(2, 8)}`;
-      const optimistic: MessagePayload = {
-        id: tempId,
-        tempId,
-        conversationId: joinedConversationRef.current,
-        fromUserId: currentUserId,
-        text,
-        createdAt: new Date().toISOString(),
-        metadata: { optimistic: true, ...(extra?.metadata || {}) },
-      };
-      setMessages((prev) => [...prev, optimistic]);
-
-      socket.emit(EV.SEND_MESSAGE, {
-        conversationId: joinedConversationRef.current,
-        text,
-        metadata: extra?.metadata,
-      });
-      // Server sẽ emit lại RECEIVE_MESSAGE -> sẽ replace temp message
-    },
-    [socket, currentUserId]
-  );
-
-  const startTyping = useCallback(() => {
-    if (!socket || !joinedConversationRef.current) return;
-    socket.emit(EV.TYPING, {
-      conversationId: joinedConversationRef.current,
-      userId: currentUserId,
-    });
-  }, [socket, currentUserId]);
-
-  const stopTyping = useCallback(() => {
-    if (!socket || !joinedConversationRef.current) return;
-    socket.emit(EV.STOP_TYPING, {
-      conversationId: joinedConversationRef.current,
-      userId: currentUserId,
-    });
-  }, [socket, currentUserId]);
-
-  const markRead = useCallback(
-    (messageIds?: string[]) => {
-      if (!socket || !joinedConversationRef.current) return;
-      socket.emit(EV.MARK_READ, {
-        conversationId: joinedConversationRef.current,
-        messageIds,
-        lastReadAt: new Date().toISOString(),
+        callback?.(response);
       });
     },
-    [socket]
+    []
   );
 
-  const clearMessages = useCallback(() => {
-    setMessages([]);
-  }, []);
+  // Update message
+  const updateMessage = useCallback(
+    (
+      messageId: string,
+      updates: Partial<Pick<Message, "content" | "metadata">>,
+      callback?: (response: any) => void
+    ) => {
+      const socket = socketRef.current;
+      if (!socket?.connected) {
+        console.warn("Socket not connected");
+        return;
+      }
+
+      socket.emit(
+        MESSAGE_EVENTS.UPDATE_MESSAGE,
+        { messageId, ...updates },
+        callback
+      );
+    },
+    []
+  );
+
+  // Delete message
+  const deleteMessage = useCallback(
+    (messageId: string, callback?: (response: any) => void) => {
+      const socket = socketRef.current;
+      if (!socket?.connected) {
+        console.warn("Socket not connected");
+        return;
+      }
+
+      socket.emit(MESSAGE_EVENTS.DELETE_MESSAGE, { messageId }, callback);
+    },
+    []
+  );
+
+  // Send typing indicator
+  const sendTyping = useCallback(
+    (conversationId: string, isTyping: boolean) => {
+      const socket = socketRef.current;
+      if (!socket?.connected) return;
+
+      socket.emit(MESSAGE_EVENTS.TYPING, {
+        conversationId,
+        isTyping,
+      });
+    },
+    []
+  );
+
+  // Mark message as read
+  const markAsRead = useCallback(
+    (conversationId: string, messageId: string) => {
+      const socket = socketRef.current;
+      if (!socket?.connected) return;
+
+      socket.emit(MESSAGE_EVENTS.MARK_AS_READ, {
+        conversationId,
+        messageId,
+      });
+    },
+    []
+  );
+
+  // Get connection status
+  const isConnected = socketRef.current?.connected ?? false;
 
   return {
-    // state
+    // Connection status
     isConnected,
-    socket,
-    messages: sortedMessages,
-    typingUsers: Object.keys(typingUsers),
-    onlineUsers,
+    socket: socketRef.current,
 
-    // room
-    join,
-    leave,
-
-    // actions
-    sendText,
-    startTyping,
-    stopTyping,
-    markRead,
-    clearMessages,
+    // Actions
+    joinConversation,
+    leaveConversation,
+    sendMessage,
+    updateMessage,
+    deleteMessage,
+    sendTyping,
+    markAsRead,
   };
-}
+};
+
+// ===== Helper Hook for Typing Indicator =====
+export const useTypingIndicator = (
+  conversationId: string,
+  delay: number = 2000
+) => {
+  const { sendTyping } = useMessageSocket();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const startTyping = useCallback(() => {
+    if (!conversationId) return;
+
+    // Send typing indicator
+    sendTyping(conversationId, true);
+
+    // Clear existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    // Set timeout to stop typing
+    timeoutRef.current = setTimeout(() => {
+      sendTyping(conversationId, false);
+    }, delay);
+  }, [conversationId, delay, sendTyping]);
+
+  const stopTyping = useCallback(() => {
+    if (!conversationId) return;
+
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
+    sendTyping(conversationId, false);
+  }, [conversationId, sendTyping]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return { startTyping, stopTyping };
+};

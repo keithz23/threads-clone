@@ -44,7 +44,7 @@ function App() {
         />
 
         <Route
-          path="/@:handle/*"
+          path="/:handle/*"
           element={
             <ProtectedRoute>
               <Dashboard />

@@ -9,6 +9,7 @@ import EditProfile from "@/components/profile/EditProfile";
 import { useAuth } from "@/hooks/useAuth";
 import type { UpdateProfileDto } from "@/interfaces/auth/profile.interface";
 import { useProfileRealtime } from "@/hooks/useProfile";
+import { useParams } from "react-router-dom";
 
 type TabKey = "threads" | "replies" | "media" | "reposts";
 
@@ -52,6 +53,9 @@ export default function Profile() {
   const me = user?.data;
   const token = useMemo(() => pickToken(user), [user]);
   const profileId = me?.id as string | undefined;
+  const username = useParams<{ username?: string }>;
+  console.log(username);
+
   useProfileRealtime(me, profileId, token);
 
   const profile = useMemo(() => {

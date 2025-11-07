@@ -1,32 +1,26 @@
-// hooks/useUserProfile.ts
 import { useQuery } from "@tanstack/react-query";
 import { UserService } from "../services/user/user.service";
+import type { UserProfile } from "@/interfaces/user/user.interface";
 
-interface UseUserProfileOptions {
-  userId?: string;
-  username?: string;
-}
-
-export function useUserProfile({ userId, username }: UseUserProfileOptions) {
-  const identifier = userId || username;
-
-  return useQuery({
-    queryKey: username
-      ? ["user-profile", "username", username]
-      : ["user-profile", "id", userId],
+export function useUserProfile(username?: string) {
+  const query = useQuery<UserProfile, Error>({
+    queryKey: ["user-profile", username],
     queryFn: async () => {
-      if (!identifier) throw new Error("User ID or username is required");
-
-      // Gọi API tương ứng
-      const { data } = username
-        ? await UserService.getProfileByUsername(username)
-        : await UserService.getProfile(userId!);
-
-      return data;
+      if (!username) throw new Error("Username is required");
+      const res = await UserService.getProfile(username);
+      const maybeData = (res as any)?.data ?? res;
+      return maybeData;
     },
-    enabled: !!identifier,
+    enabled: !!username,
     staleTime: 2 * 60_000,
-    gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,
   });
+
+  return {
+    profileData: query.data ?? null,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    error: query.error ?? null,
+    refetch: query.refetch,
+  };
 }

@@ -26,7 +26,7 @@ export default function Dashboard() {
   const headerTitle =
     activeTab === "profile"
       ? handle
-        ? `@${handle}`
+        ? `${handle}`
         : "Profile"
       : activeTab.charAt(0).toUpperCase() + activeTab.slice(1);
 

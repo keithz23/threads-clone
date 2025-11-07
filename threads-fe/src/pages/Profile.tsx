@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { UpdateProfileDto } from "@/interfaces/auth/profile.interface";
 import { useProfileRealtime } from "@/hooks/useProfile";
 import { useParams } from "react-router-dom";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 type TabKey = "threads" | "replies" | "media" | "reposts";
 
@@ -53,13 +54,36 @@ export default function Profile() {
   const me = user?.data;
   const token = useMemo(() => pickToken(user), [user]);
   const profileId = me?.id as string | undefined;
-  const username = useParams<{ username?: string }>;
-  console.log(username);
 
+  // get handle from route params; if absent -> undefined
+  const { handle } = useParams();
+  const targetUsername = handle ? handle.replace(/^@/, "") : undefined;
+
+  // realtime hook (it can be noop if me undefined)
   useProfileRealtime(me, profileId, token);
 
+  // use updated hook shape (returns profileData, isLoading, error, ...)
+  const { profileData, isLoading, error, refetch, isFetching } =
+    useUserProfile(targetUsername);
+
+  const viewingUser = useMemo(() => {
+    return profileData ?? me ?? {};
+  }, [profileData, me]);
+
+  const isOwnProfile = useMemo(() => {
+    if (!me) return false;
+    if (profileData && typeof profileData.isOwnProfile !== "undefined")
+      return Boolean(profileData.isOwnProfile);
+    return !!(
+      (viewingUser?.id && me.id && viewingUser.id === me.id) ||
+      (viewingUser?.username &&
+        me.username &&
+        viewingUser.username === me.username)
+    );
+  }, [me, profileData, viewingUser]);
+
   const profile = useMemo(() => {
-    const d = user?.data ?? {};
+    const d = viewingUser ?? {};
 
     const interestsClean: string[] = Array.isArray(d.interests)
       ? [
@@ -73,7 +97,8 @@ export default function Profile() {
       : [];
 
     return {
-      displayName: d.displayName.trim(),
+      id: d.id,
+      displayName: (d.displayName ?? "").trim(),
       username: (d.username ?? "").trim(),
       bio: (d.bio ?? "").trim(),
       interests: interestsClean,
@@ -89,10 +114,14 @@ export default function Profile() {
           ? d.followersCount
           : 0,
     };
-  }, [user?.data]);
+  }, [viewingUser]);
+
+  console.log(JSON.stringify(profile));
 
   const handleSave = async (data: UpdateProfileDto) => {
     await update.mutateAsync({ updateProfileDto: data });
+    // refresh profile after update (if viewing self)
+    refetch?.();
   };
 
   const initialTab: TabKey = useMemo(() => {
@@ -205,17 +234,19 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Edit profile button full-width */}
-        <div className="mt-5">
-          <Button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="w-full rounded-xl border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 cursor-pointer"
-            variant="outline"
-          >
-            Edit profile
-          </Button>
-        </div>
+        {/* Edit profile button full-width (only when viewing own profile) */}
+        {isOwnProfile && (
+          <div className="mt-5">
+            <Button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="w-full rounded-xl border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 cursor-pointer"
+              variant="outline"
+            >
+              Edit profile
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}

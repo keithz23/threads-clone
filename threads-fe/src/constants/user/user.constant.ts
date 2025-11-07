@@ -1,3 +1,3 @@
 export const User = {
-  PROFILE: "/user/profile",
+  PROFILE: "/users/profile",
 };

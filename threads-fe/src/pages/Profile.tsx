@@ -127,6 +127,15 @@ export default function Profile() {
     };
   }, [viewingUser]);
 
+  useEffect(() => {
+    if (
+      profileData &&
+      typeof profileData.relationshipStatus?.isFollowing !== "undefined"
+    ) {
+      setIsFollowing(profileData.relationshipStatus.isFollowing);
+    }
+  }, [profileData]);
+
   const handleSave = async (data: UpdateProfileDto) => {
     await update.mutateAsync({ updateProfileDto: data });
   };

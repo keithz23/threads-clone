@@ -1,5 +1,7 @@
 import { useSocketContext } from "@/contexts/SocketContext";
-import { useEffect, useState, useCallback } from "react";
+import type { User } from "@/interfaces/auth/user.inteface";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { playNotificationSound } from "@/utils/sound";
 
 // ============================================
 // Type Definitions
@@ -17,6 +19,7 @@ export interface Notification {
   type: NotificationType;
   actorId: string;
   actorName?: string;
+  actor: User;
   actorAvatar?: string;
   message: string;
   postId?: string;
@@ -40,6 +43,9 @@ export default function useNotificationsFromProvider() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(socket?.connected ?? false);
 
+  // Track if this is the first load
+  const isInitialLoadRef = useRef(true);
+
   useEffect(() => {
     if (!socket) return;
 
@@ -53,11 +59,18 @@ export default function useNotificationsFromProvider() {
         : list.notifications || [];
       setNotifications(notificationList);
       setUnreadCount(notificationList.filter((n) => !n.isRead).length);
+
+      isInitialLoadRef.current = true;
     };
 
     const handleNew = (notif: Notification) => {
       setNotifications((prev) => [notif, ...prev]);
       if (!notif.isRead) setUnreadCount((prev) => prev + 1);
+
+      // Only play sound for NEW notifications (after initial load)
+      if (!isInitialLoadRef.current) {
+        playNotificationSound();
+      }
     };
 
     const handleUnreadCount = ({ count }: { count: number }) => {
@@ -83,7 +96,13 @@ export default function useNotificationsFromProvider() {
       socket.emit("get-notifications");
     }
 
+    // Mark initial load as complete after a short delay
+    const timer = setTimeout(() => {
+      isInitialLoadRef.current = false;
+    }, 1000);
+
     return () => {
+      clearTimeout(timer);
       socket.off("notifications:initial", handleInitial);
       socket.off("new-notification", handleNew);
       socket.off("unread-count", handleUnreadCount);

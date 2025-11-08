@@ -9,7 +9,7 @@ export function useUserProfile(username?: string) {
       if (!username) throw new Error("Username is required");
       const res = await UserService.getProfile(username);
       const maybeData = (res as any)?.data ?? res;
-      return maybeData;
+      return maybeData.data;
     },
     enabled: !!username,
     staleTime: 2 * 60_000,

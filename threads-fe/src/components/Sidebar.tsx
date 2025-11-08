@@ -1,19 +1,12 @@
-import {
-  House,
-  Search,
-  Plus,
-  Heart,
-  User,
-  TextAlignStart,
-  ChevronRight,
-  Send,
-} from "lucide-react";
+import { TextAlignStart, Send } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Separator } from "./ui/separator";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "./ui/badge";
 import { useLocation, useNavigate } from "react-router-dom";
 import { pathToTab, tabToPath, type TabKey } from "@/utils/tabPathMap";
+import { userMenu } from "@/constants/item/userMenu";
+import { tabs } from "@/constants/tabs/sidebarTab";
 
 export default function Sidebar() {
   const { logout, user } = useAuth();
@@ -21,30 +14,6 @@ export default function Sidebar() {
   const { pathname } = useLocation();
   const activeTab = pathToTab(pathname);
   const handle = user?.data?.username;
-
-  const tabs: Array<{
-    id: number;
-    name: TabKey | "plus";
-    icon: React.ReactNode;
-  }> = [
-    { id: 1, name: "home", icon: <House size={24} /> },
-    { id: 2, name: "search", icon: <Search size={24} /> },
-    { id: 3, name: "plus", icon: <Plus size={24} /> }, // action
-    {
-      id: 4,
-      name: "activity",
-      icon: (
-        <div className="relative inline-block">
-          <Heart size={24} />
-          <Badge
-            variant="destructive"
-            className="absolute -top-1 -right-1 h-2 w-2 p-0 flex items-center justify-center"
-          />
-        </div>
-      ),
-    },
-    { id: 5, name: "profile", icon: <User size={24} /> },
-  ];
 
   const go = (tab: TabKey) => navigate(tabToPath(tab, handle));
 
@@ -55,35 +24,6 @@ export default function Sidebar() {
   const handleLogout = async () => {
     await logout.mutateAsync();
   };
-
-  const moreContent = [
-    {
-      appearance: [
-        {
-          id: 1,
-          name: "appearance",
-          displayName: "Appearance",
-          chevron: <ChevronRight />,
-        },
-        { id: 2, name: "insight", displayName: "Insight" },
-        { id: 3, name: "settings", displayName: "Settings" },
-      ],
-      feed: [
-        {
-          id: 1,
-          name: "feeds",
-          displayName: "Feeds",
-          chevron: <ChevronRight />,
-        },
-        { id: 2, name: "saved", displayName: "Saved" },
-        { id: 3, name: "liked", displayName: "Liked" },
-      ],
-      function: [
-        { id: 1, name: "reportAProblem", displayName: "Report a problem" },
-        { id: 2, name: "logout", displayName: "Logout" },
-      ],
-    },
-  ];
 
   return (
     <>
@@ -171,7 +111,7 @@ export default function Sidebar() {
                     <div role="menu" aria-label="More options" className="py-1">
                       {/* Appearance group */}
                       <div className="px-1 py-1">
-                        {moreContent[0].appearance.map((item) => (
+                        {userMenu[0].preferences.map((item) => (
                           <button
                             key={item.id}
                             role="menuitem"
@@ -190,7 +130,7 @@ export default function Sidebar() {
 
                       {/* Feed group */}
                       <div className="px-1 py-1">
-                        {moreContent[0].feed.map((item) => (
+                        {userMenu[0].content.map((item) => (
                           <button
                             key={item.id}
                             role="menuitem"
@@ -209,7 +149,7 @@ export default function Sidebar() {
 
                       {/* Function group */}
                       <div className="px-1 py-1">
-                        {moreContent[0].function.map((item) => {
+                        {userMenu[0].account.map((item) => {
                           const isLogout = item.name === "logout";
                           return (
                             <button

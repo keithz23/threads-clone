@@ -1,9 +1,10 @@
-import { ChartNoAxesColumn, Link as LinkIcon } from "lucide-react";
-import { useEffect, useMemo, useState, type JSX } from "react";
-import Threads from "../components/tabs/Threads";
-import Replies from "../components/tabs/Replies";
-import Media from "../components/tabs/Media";
-import Reposts from "../components/tabs/Reposts";
+import {
+  Bell,
+  ChartNoAxesColumn,
+  Ellipsis,
+  Link as LinkIcon,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import EditProfile from "@/components/profile/EditProfile";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,22 +12,30 @@ import type { UpdateProfileDto } from "@/interfaces/auth/profile.interface";
 import { useProfileRealtime } from "@/hooks/useProfile";
 import { useParams } from "react-router-dom";
 import { useUserProfile } from "@/hooks/useUserProfile";
-
-type TabKey = "threads" | "replies" | "media" | "reposts";
-
-const TABS = [
-  { id: 1, displayName: "Threads", name: "threads" as const },
-  { id: 2, displayName: "Replies", name: "replies" as const },
-  { id: 3, displayName: "Media", name: "media" as const },
-  { id: 4, displayName: "Reposts", name: "reposts" as const },
-] satisfies { id: number; displayName: string; name: TabKey }[];
-
-const TAB_TO_COMPONENT: Record<TabKey, JSX.Element> = {
-  threads: <Threads />,
-  replies: <Replies />,
-  media: <Media />,
-  reposts: <Reposts />,
-};
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
+import {
+  profileMenuItems,
+  TAB_TO_COMPONENT,
+  TABS,
+  type TabKey,
+} from "@/constants/item/profileMenu";
+import { useFollow } from "@/hooks/useFollow";
+import useNotificationsFromProvider from "@/hooks/useNotifications";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 function normalizeUrl(url?: string) {
   if (!url) return "";
@@ -50,37 +59,39 @@ function pickToken(userObj: any): string | undefined {
 
 export default function Profile() {
   const [open, setOpen] = useState(false);
+  const [showUnfollowDialog, setShowUnfollowDialog] = useState(false);
+
   const { user, update } = useAuth();
+  const [isFollowing, setIsFollowing] = useState(false);
   const me = user?.data;
   const token = useMemo(() => pickToken(user), [user]);
   const profileId = me?.id as string | undefined;
+  const follow = useFollow();
 
-  // get handle from route params; if absent -> undefined
   const { handle } = useParams();
   const targetUsername = handle ? handle.replace(/^@/, "") : undefined;
 
-  // realtime hook (it can be noop if me undefined)
   useProfileRealtime(me, profileId, token);
 
-  // use updated hook shape (returns profileData, isLoading, error, ...)
-  const { profileData, isLoading, error, refetch, isFetching } =
-    useUserProfile(targetUsername);
+  const { profileData } = useUserProfile(targetUsername);
 
-  const viewingUser = useMemo(() => {
-    return profileData ?? me ?? {};
-  }, [profileData, me]);
+  const notifications = useNotificationsFromProvider();
 
   const isOwnProfile = useMemo(() => {
     if (!me) return false;
-    if (profileData && typeof profileData.isOwnProfile !== "undefined")
+    if (!targetUsername) return true;
+    if (profileData && typeof profileData.isOwnProfile !== "undefined") {
       return Boolean(profileData.isOwnProfile);
-    return !!(
-      (viewingUser?.id && me.id && viewingUser.id === me.id) ||
-      (viewingUser?.username &&
-        me.username &&
-        viewingUser.username === me.username)
-    );
-  }, [me, profileData, viewingUser]);
+    }
+    return me.username === targetUsername;
+  }, [me, targetUsername, profileData]);
+
+  const viewingUser = useMemo(() => {
+    if (isOwnProfile) {
+      return me ?? {};
+    }
+    return profileData ?? {};
+  }, [isOwnProfile, me, profileData]);
 
   const profile = useMemo(() => {
     const d = viewingUser ?? {};
@@ -116,12 +127,8 @@ export default function Profile() {
     };
   }, [viewingUser]);
 
-  console.log(JSON.stringify(profile));
-
   const handleSave = async (data: UpdateProfileDto) => {
     await update.mutateAsync({ updateProfileDto: data });
-    // refresh profile after update (if viewing self)
-    refetch?.();
   };
 
   const initialTab: TabKey = useMemo(() => {
@@ -135,6 +142,34 @@ export default function Profile() {
     return "threads";
   }, []);
 
+  const handleFollow = async (followingId: string) => {
+    try {
+      const res = await follow.follow.mutateAsync({ followingId });
+      if (res?.data?.isFollowing !== undefined) {
+        setIsFollowing(res.data.isFollowing);
+      }
+
+      notifications.sendNotification({
+        targetUserId: followingId,
+        type: "FOLLOW",
+      });
+    } catch (error) {
+      console.error("Follow failed:", error);
+    }
+  };
+
+  const handleUnFollow = async (followingId: string) => {
+    try {
+      const res = await follow.unfollow.mutateAsync({ followingId });
+      if (res?.data?.isFollowing !== undefined) {
+        setIsFollowing(res.data.isFollowing);
+      }
+      setShowUnfollowDialog(false);
+    } catch (error) {
+      console.error("Unfollow failed:", error);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
 
   useEffect(() => {
@@ -147,7 +182,7 @@ export default function Profile() {
   }, [activeTab]);
 
   const interestPills = useMemo(
-    () => [...profile.interests, "+"],
+    () => [...profile.interests],
     [profile.interests]
   );
 
@@ -223,19 +258,110 @@ export default function Profile() {
                 </>
               )}
             </div>
-            <button
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 hover:bg-gray-50 cursor-pointer"
-              title="Insights"
-              aria-label="Insights"
-              type="button"
-            >
-              <ChartNoAxesColumn className="size-4" />
-            </button>
+            {isOwnProfile ? (
+              <Button
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 hover:bg-gray-50 cursor-pointer"
+                title="Insights"
+                aria-label="Insights"
+                type="button"
+                variant={"outline"}
+              >
+                <ChartNoAxesColumn className="size-4" />
+              </Button>
+            ) : (
+              <div className="flex items-center gap-x-3">
+                <Button
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 hover:bg-gray-50 cursor-pointer"
+                  title="Bell"
+                  aria-label="Bell"
+                  type="button"
+                  variant={"outline"}
+                >
+                  <Bell className="size-4" />
+                </Button>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 hover:bg-gray-50 cursor-pointer"
+                      title="ellipsis"
+                      aria-label="ellipsis"
+                      type="button"
+                      variant={"outline"}
+                    >
+                      <Ellipsis className="size-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-56 p-1"
+                    side="bottom"
+                    align="start"
+                    sideOffset={8}
+                  >
+                    <div role="menu" aria-label="More options" className="py-1">
+                      {/* Interact group */}
+                      <div className="px-1 py-1">
+                        {profileMenuItems[0].actions.map((item) => (
+                          <button
+                            key={item.id}
+                            role="menuitem"
+                            className="w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-sm hover:bg-gray-100 cursor-pointer"
+                            onClick={() => {}}
+                          >
+                            <span className="truncate">{item.displayName}</span>
+                            <span className="shrink-0">{item.icon}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      <Separator className="my-1" />
+
+                      {/* Mute group */}
+                      <div className="px-1 py-1">
+                        {profileMenuItems[0].privacy.map((item) => (
+                          <button
+                            key={item.id}
+                            role="menuitem"
+                            className="w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-sm hover:bg-gray-100 cursor-pointer"
+                            onClick={() => {}}
+                          >
+                            <span className="truncate">{item.displayName}</span>
+                            <span className="shrink-0">{item.icon}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      <Separator className="my-1" />
+
+                      {/* Function group */}
+                      <div className="px-1 py-1">
+                        {profileMenuItems[0].moderation.map((item) => {
+                          return (
+                            <button
+                              key={item.id}
+                              role="menuitem"
+                              className={
+                                "w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-sm cursor-pointer text-red-600 hover:bg-red-50"
+                              }
+                            >
+                              <span className="truncate">
+                                {item.displayName}
+                              </span>
+                              <span className="shrink-0">{item.icon}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Edit profile button full-width (only when viewing own profile) */}
-        {isOwnProfile && (
+        {isOwnProfile ? (
           <div className="mt-5">
             <Button
               type="button"
@@ -245,6 +371,74 @@ export default function Profile() {
             >
               Edit profile
             </Button>
+          </div>
+        ) : (
+          <div>
+            <div className="mt-5 flex items-center gap-x-3">
+              <Button
+                type="button"
+                className={`p-5 w-1/2 rounded-lg border border-gray-300 cursor-pointer flex items-center justify-center gap-2 ${
+                  isFollowing
+                    ? "bg-white text-gray-900 hover:bg-gray-50"
+                    : "bg-black text-white hover:bg-gray-800"
+                }`}
+                variant={isFollowing ? "outline" : "default"}
+                onClick={() => {
+                  if (isFollowing) {
+                    setShowUnfollowDialog(true);
+                  } else {
+                    handleFollow(profile.id);
+                  }
+                }}
+                disabled={follow.follow.isPending || follow.unfollow.isPending}
+              >
+                {follow.follow.isPending || follow.unfollow.isPending ? (
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : isFollowing ? (
+                  <>Following</>
+                ) : (
+                  <>Follow</>
+                )}
+              </Button>
+
+              {/* Modal confirm unfollow */}
+              <AlertDialog
+                open={showUnfollowDialog}
+                onOpenChange={setShowUnfollowDialog}
+              >
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Unfollow @{profile.username}?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Their posts will no longer show up in your home timeline.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => handleUnFollow(profile.id)}
+                      disabled={follow.unfollow.isPending}
+                      className="bg-black text-white hover:bg-gray-800"
+                    >
+                      {follow.unfollow.isPending ? (
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        "Unfollow"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <Button
+                type="button"
+                className="p-5 w-1/2 rounded-lg border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 cursor-pointer"
+                variant="outline"
+              >
+                Mention
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -297,27 +491,29 @@ export default function Profile() {
 
       {/* Composer row */}
       <div className="p-4">
-        <div className="flex items-center gap-3 rounded-xl border border-gray-200 p-3">
-          <img
-            src={profile.avatarUrl}
-            alt="Your avatar"
-            width={28}
-            height={28}
-            className="rounded-full border border-gray-300 object-cover"
-          />
-          <input
-            type="text"
-            placeholder="What's new?"
-            className="flex-1 bg-transparent outline-none placeholder:text-gray-400 text-sm"
-          />
-          <Button
-            type="button"
-            className="rounded-lg border border-gray-300 bg-white text-gray-900 hover:bg-gray-50"
-            variant="outline"
-          >
-            Post
-          </Button>
-        </div>
+        {isOwnProfile && (
+          <div className="flex items-center gap-3 rounded-xl border border-gray-200 p-3">
+            <img
+              src={profile.avatarUrl}
+              alt="Your avatar"
+              width={28}
+              height={28}
+              className="rounded-full border border-gray-300 object-cover"
+            />
+            <input
+              type="text"
+              placeholder="What's new?"
+              className="flex-1 bg-transparent outline-none placeholder:text-gray-400 text-sm"
+            />
+            <Button
+              type="button"
+              className="rounded-lg border border-gray-300 bg-white text-gray-900 hover:bg-gray-50"
+              variant="outline"
+            >
+              Post
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Content */}

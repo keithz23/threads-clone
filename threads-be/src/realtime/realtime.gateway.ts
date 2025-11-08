@@ -70,6 +70,7 @@ export class RealTimeGateWay
   }
 
   emitProfileUpdate(profileId: string, profile: any) {
+    this.logger.debug(`profile:${profileId}`);
     this.server.to(`profile:${profileId}`).emit('profile.updated', { profile });
   }
 

@@ -14,7 +14,10 @@ function App() {
   const { user } = useAuth();
 
   return (
-    <SocketProvider userId={user?.data?.id} profileId={user?.data.id}>
+    <SocketProvider
+      userId={user?.data?.id ?? null}
+      profileId={user?.data?.id ?? null}
+    >
       <Routes>
         <Route
           path="/"

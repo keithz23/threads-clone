@@ -1,16 +1,12 @@
 import useNotificationsFromProvider from "@/hooks/useNotifications";
 import { Heart, MessageCircle, UserPlus, Repeat2, AtSign } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { enUS, vi } from "date-fns/locale";
+import { enUS } from "date-fns/locale";
 
 export default function Activity() {
   const notifications = useNotificationsFromProvider();
 
-  const {
-    notifications: notificationList,
-    unreadCount,
-    isConnected,
-  } = notifications;
+  const { notifications: notificationList } = notifications;
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -56,10 +52,6 @@ export default function Activity() {
     } else if (notif.type === "FOLLOW") {
       console.log("Navigate to profile:", notif.actorId);
     }
-  };
-
-  const handleMarkAllRead = () => {
-    notifications.markAllRead();
   };
 
   return (

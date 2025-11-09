@@ -6,14 +6,17 @@ import { Badge } from "./ui/badge";
 import { useLocation, useNavigate } from "react-router-dom";
 import { pathToTab, tabToPath, type TabKey } from "@/utils/tabPathMap";
 import { userMenu } from "@/constants/item/userMenu";
-import { tabs } from "@/constants/tabs/sidebarTab";
+import { makeTabs } from "@/constants/tabs/sidebarTab";
+import useNotificationsFromProvider from "@/hooks/useNotifications";
 
 export default function Sidebar() {
+  const { notifications } = useNotificationsFromProvider();
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const activeTab = pathToTab(pathname);
   const handle = user?.data?.username;
+  const tabs = makeTabs(notifications);
 
   const go = (tab: TabKey) => navigate(tabToPath(tab, handle));
 

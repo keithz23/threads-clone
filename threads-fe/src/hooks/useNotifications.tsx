@@ -43,45 +43,68 @@ export default function useNotificationsFromProvider() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(socket?.connected ?? false);
 
-  // Track if this is the first load
   const isInitialLoadRef = useRef(true);
+  const lastNotificationTimeRef = useRef<number>(0);
+  const SOUND_COOLDOWN = 500; // ms
 
   useEffect(() => {
     if (!socket) return;
 
     setIsConnected(socket.connected);
 
+    // ============================================
+    // Handle initial notifications from server
+    // ============================================
     const handleInitial = (
       list: Notification[] | { notifications: Notification[] }
     ) => {
       const notificationList = Array.isArray(list)
         ? list
         : list.notifications || [];
+
       setNotifications(notificationList);
       setUnreadCount(notificationList.filter((n) => !n.isRead).length);
 
-      isInitialLoadRef.current = true;
+      isInitialLoadRef.current = false;
     };
 
+    // ============================================
+    // Handle new incoming notification
+    // ============================================
     const handleNew = (notif: Notification) => {
+      const now = Date.now();
+      const shouldPlaySound =
+        !isInitialLoadRef.current &&
+        now - lastNotificationTimeRef.current > SOUND_COOLDOWN;
+
       setNotifications((prev) => [notif, ...prev]);
       if (!notif.isRead) setUnreadCount((prev) => prev + 1);
 
-      // Only play sound for NEW notifications (after initial load)
-      if (!isInitialLoadRef.current) {
+      if (shouldPlaySound) {
         playNotificationSound();
+        lastNotificationTimeRef.current = now;
       }
     };
 
+    // ============================================
+    // Handle unread count updates
+    // ============================================
     const handleUnreadCount = ({ count }: { count: number }) => {
       setUnreadCount(count);
     };
 
+    // ============================================
+    // Handle socket connection
+    // ============================================
     const handleConnect = () => {
       setIsConnected(true);
+      isInitialLoadRef.current = true;
       socket.emit("get-notifications");
     };
 
+    // ============================================
+    // Handle socket disconnection
+    // ============================================
     const handleDisconnect = () => {
       setIsConnected(false);
     };
@@ -96,13 +119,8 @@ export default function useNotificationsFromProvider() {
       socket.emit("get-notifications");
     }
 
-    // Mark initial load as complete after a short delay
-    const timer = setTimeout(() => {
-      isInitialLoadRef.current = false;
-    }, 1000);
-
+    // Cleanup
     return () => {
-      clearTimeout(timer);
       socket.off("notifications:initial", handleInitial);
       socket.off("new-notification", handleNew);
       socket.off("unread-count", handleUnreadCount);
@@ -117,7 +135,7 @@ export default function useNotificationsFromProvider() {
   const markAsRead = useCallback(
     (id: string) => {
       setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
       );
 
       // Update unread count
@@ -134,7 +152,7 @@ export default function useNotificationsFromProvider() {
   // Mark all notifications as read
   // ============================================
   const markAllRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     setUnreadCount(0);
 
     if (socket?.connected) {
@@ -169,6 +187,7 @@ export default function useNotificationsFromProvider() {
   const sendNotification = useCallback(
     (payload: SendNotificationPayload) => {
       if (!socket?.connected) {
+        console.warn("Cannot send notification: socket not connected");
         return false;
       }
 
@@ -184,6 +203,7 @@ export default function useNotificationsFromProvider() {
   const emit = useCallback(
     (event: string, payload?: any) => {
       if (!socket?.connected) {
+        console.warn(`Cannot emit ${event}: socket not connected`);
         return false;
       }
       socket.emit(event, payload);
@@ -215,8 +235,11 @@ export default function useNotificationsFromProvider() {
   // ============================================
   const refresh = useCallback(() => {
     if (!socket?.connected) {
+      console.warn("Cannot refresh: socket not connected");
       return false;
     }
+    // Reset initial load flag to prevent sound on refresh
+    isInitialLoadRef.current = true;
     socket.emit("get-notifications");
     return true;
   }, [socket]);
@@ -250,6 +273,7 @@ export function useSendNotification() {
   const send = useCallback(
     (payload: SendNotificationPayload) => {
       if (!isConnected) {
+        console.warn("Cannot send notification: not connected");
         return false;
       }
       return sendNotification(payload);

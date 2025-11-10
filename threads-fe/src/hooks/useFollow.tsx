@@ -20,11 +20,29 @@ export function useFollow() {
       const res = await FollowService.follow(followingId);
       return res.data;
     },
-    onSuccess: async () => {
-      await qc.invalidateQueries();
+    onMutate: async ({ followingId }) => {
+      await qc.cancelQueries({ queryKey: ["suggestions"] });
+
+      const previousSuggestions = qc.getQueryData(["suggestions"]);
+
+      qc.setQueryData(["suggestions"], (old: any) => {
+        if (!old) return old;
+        return old.filter((sug: any) => sug.id !== followingId);
+      });
+
+      return { previousSuggestions };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["suggestions"] });
+      qc.invalidateQueries({ queryKey: ["following"] });
+
       toast.success("Followed successfully.");
     },
-    onError: (err: unknown) => {
+    onError: (err: unknown, variables, context) => {
+      if (context?.previousSuggestions) {
+        qc.setQueryData(["suggestions"], context.previousSuggestions);
+      }
+
       toast.error(extractErrMsg(err));
     },
   });

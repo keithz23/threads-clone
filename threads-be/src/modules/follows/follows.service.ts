@@ -126,4 +126,66 @@ export class FollowsService {
       throw error;
     }
   }
+
+  async getFollowingList(userId: string) {
+    const userExists = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!userExists) {
+      throw new NotFoundException('User not found');
+    }
+
+    const following = await this.prisma.follow.findMany({
+      where: {
+        followerId: userId,
+      },
+      select: {
+        following: {
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            email: true,
+            avatarUrl: true,
+            bio: true,
+          },
+        },
+      },
+    });
+
+    return following.map((f) => f.following);
+  }
+
+  async getFollowerList(userId: string) {
+    const userExists = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!userExists) {
+      throw new NotFoundException('User not found');
+    }
+
+    const followers = await this.prisma.follow.findMany({
+      where: {
+        followingId: userId,
+      },
+      select: {
+        follower: {
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            email: true,
+            avatarUrl: true,
+            bio: true,
+          },
+        },
+      },
+    });
+
+    return followers.map((f) => f.follower);
+  }
 }

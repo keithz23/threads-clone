@@ -8,9 +8,12 @@ import { pathToTab, tabToPath, type TabKey } from "@/utils/tabPathMap";
 import { userMenu } from "@/constants/item/userMenu";
 import { makeTabs } from "@/constants/tabs/sidebarTab";
 import useNotificationsFromProvider from "@/hooks/useNotifications";
+import { useState } from "react";
+import ThreadsPostDialog from "./ThreadsPostDialog";
 
 export default function Sidebar() {
   const { notifications } = useNotificationsFromProvider();
+  const [showPostDialog, setShowPostDialog] = useState(false);
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -21,7 +24,7 @@ export default function Sidebar() {
   const go = (tab: TabKey) => navigate(tabToPath(tab, handle));
 
   const onPlus = () => {
-    console.log("Open compose modal");
+    setShowPostDialog(true);
   };
 
   const handleLogout = async () => {
@@ -31,7 +34,7 @@ export default function Sidebar() {
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-20 h-screen fixed left-0 top-0 shadow-md">
+      <aside className="hidden md:flex w-20 h-screen fixed left-0 top-0 shadow-md bg-white">
         <div className="flex flex-col items-center justify-between gap-10 h-full p-4">
           {/* Logo */}
           <div aria-label="Threads logo">
@@ -243,6 +246,11 @@ export default function Sidebar() {
           ))}
         </ul>
       </nav>
+
+      <ThreadsPostDialog
+        showPostDialog={showPostDialog}
+        setShowPostDialog={setShowPostDialog}
+      />
     </>
   );
 }

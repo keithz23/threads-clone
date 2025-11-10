@@ -24,6 +24,7 @@ import { SearchModule } from './modules/search/search.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { CacheModule } from './modules/cache/cache.module';
 import { TasksModule } from './tasks/tasks.module';
+import { SuggestionsModule } from './modules/suggestions/suggestions.module';
 
 // Guards
 import { APP_GUARD } from '@nestjs/core';
@@ -37,9 +38,6 @@ import { ConversationsModule } from './modules/conversations/conversations.modul
 import { RealtimeModule } from './realtime/realtime.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { SocketModule } from './socket/socket.module';
-import { MessagesGateway } from './modules/messages/messages.gateway';
-import { RealTimeGateWay } from './realtime/realtime.gateway';
-import { NotificationsGateway } from './modules/notifications/notifications.gateway';
 
 @Module({
   imports: [
@@ -104,6 +102,7 @@ import { NotificationsGateway } from './modules/notifications/notifications.gate
     EventEmitterModule.forRoot(),
     RealtimeModule,
     SocketModule,
+    SuggestionsModule,
   ],
   providers: [
     // Global guards

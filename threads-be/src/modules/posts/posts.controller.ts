@@ -22,7 +22,7 @@ import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 export class PostsController {
   constructor(private readonly postsService: PostsService) {}
 
-  @Post()
+  @Post('create-post')
   @UseInterceptors(FilesInterceptor('images', 10)) // Max 10 images
   async create(
     @Body() createPostDto: CreatePostDto,

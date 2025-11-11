@@ -31,12 +31,28 @@ import { useToast } from "./Toast";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Switch } from "./ui/switch";
 import { Label } from "./ui/label";
+import { usePost } from "@/hooks/usePost";
 
 const ReplyOptions = [
-  { id: 1, displayName: "Anyone", name: "anyone" },
-  { id: 2, displayName: "Your followers", name: "yourFollowers" },
-  { id: 3, displayName: "Profiles you follow", name: "profilesYouFollow" },
-  { id: 4, displayName: "Profiles you mention", name: "profilesYourMetion" },
+  { id: 1, displayName: "Anyone", replyPolicyName: "ANYONE", name: "anyone" },
+  {
+    id: 2,
+    displayName: "Your followers",
+    replyPolicyName: "FOLLOWERS",
+    name: "yourFollowers",
+  },
+  {
+    id: 3,
+    displayName: "Profiles you follow",
+    replyPolicyName: "FOLLOWING",
+    name: "profilesYouFollow",
+  },
+  {
+    id: 4,
+    displayName: "Profiles you mention",
+    replyPolicyName: "MENTION",
+    name: "profilesYourMetion",
+  },
 ];
 
 const maxSizeMB = 10;
@@ -48,7 +64,10 @@ type ThreadsPostDialogProps = {
 
 type State = {
   postContent: string;
+  // preview URLs for images
   uploadedImages: string[];
+  // actual File objects to upload
+  uploadedFiles: File[];
   showEmojiPicker: boolean;
   isActive: string;
   isPopoverOpen: boolean;
@@ -57,7 +76,7 @@ type State = {
 
 type Action =
   | { type: "SET_CONTENT"; payload: string }
-  | { type: "ADD_IMAGES"; payload: string[] }
+  | { type: "ADD_IMAGES"; payload: { urls: string[]; files: File[] } }
   | { type: "REMOVE_IMAGE"; payload: number }
   | { type: "CLEAR_IMAGES" }
   | { type: "TOGGLE_EMOJI" }
@@ -69,6 +88,7 @@ type Action =
 const initialState: State = {
   postContent: "",
   uploadedImages: [],
+  uploadedFiles: [],
   showEmojiPicker: false,
   isActive: "",
   isPopoverOpen: false,
@@ -82,7 +102,8 @@ function reducer(state: State, action: Action): State {
     case "ADD_IMAGES":
       return {
         ...state,
-        uploadedImages: [...state.uploadedImages, ...action.payload],
+        uploadedImages: [...state.uploadedImages, ...action.payload.urls],
+        uploadedFiles: [...state.uploadedFiles, ...action.payload.files],
       };
     case "REMOVE_IMAGE":
       return {
@@ -90,9 +111,12 @@ function reducer(state: State, action: Action): State {
         uploadedImages: state.uploadedImages.filter(
           (_, i) => i !== action.payload
         ),
+        uploadedFiles: state.uploadedFiles.filter(
+          (_, i) => i !== action.payload
+        ),
       };
     case "CLEAR_IMAGES":
-      return { ...state, uploadedImages: [] };
+      return { ...state, uploadedImages: [], uploadedFiles: [] };
     case "TOGGLE_EMOJI":
       return { ...state, showEmojiPicker: !state.showEmojiPicker };
     case "SET_POPOVER":
@@ -118,6 +142,7 @@ export default function ThreadsPostDialog({
   const fileRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
   const { user } = useAuth();
+  const { createPost, isCreating } = usePost(); // hook
 
   const revoke = useCallback((url: string | null) => {
     if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
@@ -143,6 +168,7 @@ export default function ThreadsPostDialog({
       if (!files || files.length === 0) return;
 
       const newUrls: string[] = [];
+      const newFiles: File[] = [];
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -160,13 +186,18 @@ export default function ThreadsPostDialog({
 
         const url = URL.createObjectURL(file);
         newUrls.push(url);
+        newFiles.push(file);
       }
 
       if (newUrls.length > 0) {
-        dispatch({ type: "ADD_IMAGES", payload: newUrls });
+        dispatch({
+          type: "ADD_IMAGES",
+          payload: { urls: newUrls, files: newFiles },
+        });
         prevUrlsRef.current.push(...newUrls);
       }
 
+      // reset input so same file can be chosen again
       e.target.value = "";
     },
     [toast]
@@ -226,6 +257,52 @@ export default function ThreadsPostDialog({
     [handleOpenFile, toast]
   );
 
+  const handlePost = useCallback(() => {
+    const content = state.postContent.trim();
+    if (!content && state.uploadedFiles.length === 0) {
+      toast.error("Please add some text or an image.");
+      return;
+    }
+
+    const activeOption = ReplyOptions.find((r) => r.name === state.isActive);
+    const replyPolicyName = activeOption?.replyPolicyName || "ANYONE";
+
+    const createPostDto = {
+      content,
+      replyPolicy: replyPolicyName,
+      reviewApprove: state.reviewApprove,
+    };
+
+    createPost.mutate(
+      {
+        createPostDto,
+        images:
+          state.uploadedFiles.length > 0 ? state.uploadedFiles : undefined,
+      },
+      {
+        onSuccess: () => {
+          // clear previews and files
+          prevUrlsRef.current.forEach(revoke);
+          prevUrlsRef.current = [];
+          dispatch({ type: "CLEAR_ALL" });
+          setShowPostDialog(false);
+        },
+        onError: (err: any) => {
+          console.error("Create post failed:", err);
+        },
+      }
+    );
+  }, [
+    state.postContent,
+    state.uploadedFiles,
+    state.isActive,
+    state.reviewApprove,
+    createPost,
+    revoke,
+    setShowPostDialog,
+    toast,
+  ]);
+
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <input
@@ -242,7 +319,13 @@ export default function ThreadsPostDialog({
             <DialogTitle>
               <div className="flex items-center justify-between">
                 <button
-                  onClick={() => setShowPostDialog(false)}
+                  onClick={() => {
+                    // cleanup previews when cancel
+                    prevUrlsRef.current.forEach(revoke);
+                    prevUrlsRef.current = [];
+                    dispatch({ type: "CLEAR_ALL" });
+                    setShowPostDialog(false);
+                  }}
                   className="text-base font-normal text-gray-900 hover:text-gray-600 cursor-pointer"
                 >
                   Cancel
@@ -457,7 +540,7 @@ export default function ThreadsPostDialog({
                       <Switch
                         id="review-approve"
                         checked={state.reviewApprove}
-                        onCheckedChange={(v) =>
+                        onCheckedChange={(v: boolean) =>
                           dispatch({ type: "SET_REVIEW", payload: v })
                         }
                       />
@@ -468,19 +551,14 @@ export default function ThreadsPostDialog({
             </Popover>
 
             <button
-              onClick={() => {
-                if (state.postContent.trim()) {
-                  console.log("Posted:", state.postContent);
-                  dispatch({ type: "CLEAR_ALL" });
-                  prevUrlsRef.current.forEach(revoke);
-                  prevUrlsRef.current = [];
-                  setShowPostDialog(false);
-                }
-              }}
-              disabled={!state.postContent.trim()}
+              onClick={handlePost}
+              disabled={
+                isCreating ||
+                (!state.postContent.trim() && state.uploadedFiles.length === 0)
+              }
               className="px-6 py-1.5 rounded-full text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-gray-400 hover:text-gray-600"
             >
-              Post
+              {isCreating ? "Posting..." : "Post"}
             </button>
           </div>
         </DialogContent>

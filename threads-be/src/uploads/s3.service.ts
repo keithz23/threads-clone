@@ -27,6 +27,8 @@ export class S3Service {
         secretAccessKey: this.configService.get('config.aws.secretKey') ?? '',
       },
     });
+
+    console.log(this.configService.get('config.aws.accessKey'));
   }
 
   // Upload single image with optimization

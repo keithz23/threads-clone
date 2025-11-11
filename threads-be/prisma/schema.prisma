@@ -102,6 +102,10 @@ model Post {
   isDeleted Boolean @default(false) @map("is_deleted")
   isPinned  Boolean @default(false) @map("is_pinned")
 
+  // Reply settings
+  replyPolicy   ReplyPolicy @default(ANYONE) @map("reply_policy")
+  reviewApprove Boolean     @default(false) @map("review_approve")
+
   // Timestamps
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -134,12 +138,14 @@ model PostMedia {
   id           String    @id @default(cuid())
   postId       String    @map("post_id")
   mediaUrl     String    @map("media_url")
+  storageKey   String?   @map("storage_key")
   thumbnailUrl String?   @map("thumbnail_url")
   mediaType    MediaType @map("media_type")
+  altText      String?   @map("alt_text")
   width        Int?
   height       Int?
   duration     Int?
-  fileSize     Int?      @map("file_size")
+  fileSize     Int?      @map("file_size") // bytes
   orderIndex   Int       @map("order_index")
   createdAt    DateTime  @default(now()) @map("created_at")
 
@@ -651,4 +657,11 @@ enum ParticipantRole {
   MEMBER
   ADMIN
   OWNER
+}
+
+enum ReplyPolicy {
+  ANYONE
+  FOLLOWERS
+  FOLLOWING
+  MENTIONS
 }

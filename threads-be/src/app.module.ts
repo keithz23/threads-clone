@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bullmq';
@@ -38,6 +38,7 @@ import { ConversationsModule } from './modules/conversations/conversations.modul
 import { RealtimeModule } from './realtime/realtime.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { SocketModule } from './socket/socket.module';
+import { UploadModule } from './uploads/upload.module';
 
 @Module({
   imports: [
@@ -58,12 +59,29 @@ import { SocketModule } from './socket/socket.module';
     CacheModule,
 
     // Bull Queue (for background jobs)
-    BullModule.forRoot({
-      connection: {
-        host: process.env.REDIS_HOST,
-        port: parseInt(process.env.REDIS_PORT || ''),
-        password: process.env.REDIS_PASSWORD,
-      },
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('config.redis.host') || 'localhost',
+          port: Number(configService.get('config.redis.port') || 6379),
+          password: configService.get<string>('config.redis.password'),
+        },
+        defaultJobOptions: {
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 2000,
+          },
+          removeOnComplete: {
+            age: 3600, // 1 hour
+            count: 1000,
+          },
+          removeOnFail: {
+            age: 86400, // 24 hours
+          },
+        },
+      }),
     }),
 
     // Rate limiting
@@ -103,6 +121,7 @@ import { SocketModule } from './socket/socket.module';
     RealtimeModule,
     SocketModule,
     SuggestionsModule,
+    UploadModule,
   ],
   providers: [
     // Global guards

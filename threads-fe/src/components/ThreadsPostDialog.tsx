@@ -1,4 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import React, {
+  useRef,
+  useEffect,
+  useReducer,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   BookCopy,
   CircleEllipsis,
@@ -7,6 +13,8 @@ import {
   AlignLeft,
   MapPin,
   Hash,
+  SlidersVertical,
+  Check,
 } from "lucide-react";
 import {
   Dialog,
@@ -20,125 +28,203 @@ import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
 import { useToast } from "./Toast";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Switch } from "./ui/switch";
+import { Label } from "./ui/label";
+
+const ReplyOptions = [
+  { id: 1, displayName: "Anyone", name: "anyone" },
+  { id: 2, displayName: "Your followers", name: "yourFollowers" },
+  { id: 3, displayName: "Profiles you follow", name: "profilesYouFollow" },
+  { id: 4, displayName: "Profiles you mention", name: "profilesYourMetion" },
+];
+
+const maxSizeMB = 10;
 
 type ThreadsPostDialogProps = {
   showPostDialog: boolean;
   setShowPostDialog: (s: boolean) => void;
 };
 
+type State = {
+  postContent: string;
+  uploadedImages: string[];
+  showEmojiPicker: boolean;
+  isActive: string;
+  isPopoverOpen: boolean;
+  reviewApprove: boolean;
+};
+
+type Action =
+  | { type: "SET_CONTENT"; payload: string }
+  | { type: "ADD_IMAGES"; payload: string[] }
+  | { type: "REMOVE_IMAGE"; payload: number }
+  | { type: "CLEAR_IMAGES" }
+  | { type: "TOGGLE_EMOJI" }
+  | { type: "SET_POPOVER"; payload: boolean }
+  | { type: "SET_ACTIVE"; payload: string }
+  | { type: "SET_REVIEW"; payload: boolean }
+  | { type: "CLEAR_ALL" };
+
+const initialState: State = {
+  postContent: "",
+  uploadedImages: [],
+  showEmojiPicker: false,
+  isActive: "",
+  isPopoverOpen: false,
+  reviewApprove: false,
+};
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case "SET_CONTENT":
+      return { ...state, postContent: action.payload };
+    case "ADD_IMAGES":
+      return {
+        ...state,
+        uploadedImages: [...state.uploadedImages, ...action.payload],
+      };
+    case "REMOVE_IMAGE":
+      return {
+        ...state,
+        uploadedImages: state.uploadedImages.filter(
+          (_, i) => i !== action.payload
+        ),
+      };
+    case "CLEAR_IMAGES":
+      return { ...state, uploadedImages: [] };
+    case "TOGGLE_EMOJI":
+      return { ...state, showEmojiPicker: !state.showEmojiPicker };
+    case "SET_POPOVER":
+      return { ...state, isPopoverOpen: action.payload };
+    case "SET_ACTIVE":
+      return { ...state, isActive: action.payload };
+    case "SET_REVIEW":
+      return { ...state, reviewApprove: action.payload };
+    case "CLEAR_ALL":
+      return { ...initialState };
+    default:
+      return state;
+  }
+}
+
 export default function ThreadsPostDialog({
   showPostDialog,
   setShowPostDialog,
 }: ThreadsPostDialogProps) {
-  const { user } = useAuth();
-  const [postContent, setPostContent] = useState("");
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [state, dispatch] = useReducer(reducer, initialState);
   const prevUrlsRef = useRef<string[]>([]);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
+  const { user } = useAuth();
 
-  const maxSizeMB = 5; // Define max file size
+  const revoke = useCallback((url: string | null) => {
+    if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
+  }, []);
 
-  const revoke = (url: string | null) => {
-    if (url && url.startsWith("blob:")) {
-      URL.revokeObjectURL(url);
-    }
-  };
+  const handleEmojiClick = useCallback(
+    (emojiData: EmojiClickData) => {
+      dispatch({
+        type: "SET_CONTENT",
+        payload: state.postContent + emojiData.emoji,
+      });
+      dispatch({ type: "TOGGLE_EMOJI" });
+      textareaRef.current?.focus();
+    },
+    [state.postContent]
+  );
 
-  const handleEmojiClick = (emojiData: EmojiClickData) => {
-    setPostContent((prev) => prev + emojiData.emoji);
-    setShowEmojiPicker(false);
-    textareaRef.current?.focus();
-  };
+  const handleOpenFile = useCallback(() => fileRef.current?.click(), []);
 
-  const handleOpenFile = () => fileRef.current?.click();
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+      const newUrls: string[] = [];
 
-    const newUrls: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const isImage = file.type.startsWith("image/");
+        const isTooLarge = file.size > maxSizeMB * 1024 * 1024;
 
-    // Validate and process each file
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+        if (!isImage) {
+          toast.error(`${file.name} is not an image file.`);
+          continue;
+        }
+        if (isTooLarge) {
+          toast.error(`${file.name} is too large (>${maxSizeMB}MB).`);
+          continue;
+        }
 
-      const isImage = file.type.startsWith("image/");
-      const isTooLarge = file.size > maxSizeMB * 1024 * 1024;
-
-      if (!isImage) {
-        toast.error(`${file.name} is not an image file.`);
-        continue;
+        const url = URL.createObjectURL(file);
+        newUrls.push(url);
       }
-      if (isTooLarge) {
-        toast.error(`${file.name} is too large (>${maxSizeMB}MB).`);
-        continue;
+
+      if (newUrls.length > 0) {
+        dispatch({ type: "ADD_IMAGES", payload: newUrls });
+        prevUrlsRef.current.push(...newUrls);
       }
 
-      const url = URL.createObjectURL(file);
-      newUrls.push(url);
-    }
+      e.target.value = "";
+    },
+    [toast]
+  );
 
-    // Add valid images to uploaded images
-    if (newUrls.length > 0) {
-      setUploadedImages((prev) => [...prev, ...newUrls]);
-      prevUrlsRef.current.push(...newUrls);
-    }
-
-    e.target.value = "";
-  };
-
-  const handleRemoveImage = (indexToRemove: number) => {
-    const urlToRemove = uploadedImages[indexToRemove];
-    revoke(urlToRemove);
-
-    setUploadedImages((prev) => prev.filter((_, i) => i !== indexToRemove));
-    prevUrlsRef.current = prevUrlsRef.current.filter(
-      (_, i) => i !== indexToRemove
-    );
-  };
+  const handleRemoveImage = useCallback(
+    (indexToRemove: number) => {
+      const urlToRemove = state.uploadedImages[indexToRemove];
+      revoke(urlToRemove);
+      dispatch({ type: "REMOVE_IMAGE", payload: indexToRemove });
+      prevUrlsRef.current = prevUrlsRef.current.filter(
+        (_, i) => i !== indexToRemove
+      );
+    },
+    [state.uploadedImages, revoke]
+  );
 
   useEffect(() => {
     return () => {
-      // Cleanup all URLs on unmount
       prevUrlsRef.current.forEach(revoke);
     };
-  }, []);
+  }, [revoke]);
 
-  const functionButton = [
-    {
-      id: 1,
-      name: "image",
-      icon: <Image size={20} className="text-gray-600" />,
-      onClick: () => handleOpenFile(),
-    },
-    {
-      id: 2,
-      name: "emoji",
-      icon: <Smile size={20} className="text-gray-600" />,
-      onClick: () => setShowEmojiPicker(!showEmojiPicker),
-    },
-    {
-      id: 3,
-      name: "hash",
-      icon: <Hash size={20} className="text-gray-600" />,
-      onClick: () => toast.error("Coming soon"),
-    },
-    {
-      id: 4,
-      name: "poll",
-      icon: <AlignLeft size={20} className="text-gray-600" />,
-      onClick: () => toast.error("Coming soon"),
-    },
-    {
-      id: 5,
-      name: "location",
-      icon: <MapPin size={20} className="text-gray-600" />,
-      onClick: () => toast.error("Coming soon"),
-    },
-  ];
+  const functionButton = useMemo(
+    () => [
+      {
+        id: 1,
+        name: "image",
+        icon: <Image size={20} className="text-gray-600" />,
+        onClick: handleOpenFile,
+      },
+      {
+        id: 2,
+        name: "emoji",
+        icon: <Smile size={20} className="text-gray-600" />,
+        onClick: () => dispatch({ type: "TOGGLE_EMOJI" }),
+      },
+      {
+        id: 3,
+        name: "hash",
+        icon: <Hash size={20} className="text-gray-600" />,
+        onClick: () => toast.error("Coming soon"),
+      },
+      {
+        id: 4,
+        name: "poll",
+        icon: <AlignLeft size={20} className="text-gray-600" />,
+        onClick: () => toast.error("Coming soon"),
+      },
+      {
+        id: 5,
+        name: "location",
+        icon: <MapPin size={20} className="text-gray-600" />,
+        onClick: () => toast.error("Coming soon"),
+      },
+    ],
+    [handleOpenFile, toast]
+  );
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -210,20 +296,22 @@ export default function ThreadsPostDialog({
 
                 <textarea
                   ref={textareaRef}
-                  value={postContent}
-                  onChange={(e) => setPostContent(e.target.value)}
+                  value={state.postContent}
+                  onChange={(e) =>
+                    dispatch({ type: "SET_CONTENT", payload: e.target.value })
+                  }
                   placeholder="What's new?"
                   className="w-full resize-none border-none outline-none text-gray-900 placeholder-gray-400 text-base"
                   rows={4}
                 />
 
-                {uploadedImages.length > 0 && (
+                {state.uploadedImages.length > 0 && (
                   <Carousel
                     opts={{ align: "start" }}
                     className="w-full max-w-sm"
                   >
                     <CarouselContent>
-                      {uploadedImages.map((imageUrl, index) => (
+                      {state.uploadedImages.map((imageUrl, index) => (
                         <CarouselItem
                           key={index}
                           className="md:basis-1/2 lg:basis-1/3"
@@ -274,12 +362,11 @@ export default function ThreadsPostDialog({
                     </button>
                   ))}
 
-                  {/* Emoji Picker Popup */}
-                  {showEmojiPicker && (
+                  {state.showEmojiPicker && (
                     <>
                       <div
                         className="fixed inset-0 z-10"
-                        onClick={() => setShowEmojiPicker(false)}
+                        onClick={() => dispatch({ type: "TOGGLE_EMOJI" })}
                       />
                       <div className="absolute bottom-full left-0 mb-2 z-20">
                         <EmojiPicker
@@ -288,9 +375,7 @@ export default function ThreadsPostDialog({
                           height={400}
                           searchDisabled={false}
                           skinTonesDisabled={false}
-                          previewConfig={{
-                            showPreview: false,
-                          }}
+                          previewConfig={{ showPreview: false }}
                         />
                       </div>
                     </>
@@ -308,19 +393,91 @@ export default function ThreadsPostDialog({
           </div>
 
           <div className="border-t px-4 py-3 flex items-center justify-between">
-            <span className="text-gray-500 text-sm">Reply options</span>
+            <Popover
+              open={state.isPopoverOpen}
+              onOpenChange={(v) =>
+                dispatch({ type: "SET_POPOVER", payload: v })
+              }
+            >
+              <PopoverTrigger asChild>
+                <button
+                  className={`text-gray-600 text-sm cursor-pointer inline-flex items-center gap-x-3 hover:text-gray-900 transition-colors ${
+                    state.reviewApprove && "font-bold"
+                  }`}
+                >
+                  <SlidersVertical size={15} />
+                  <span>Reply options</span>
+                </button>
+              </PopoverTrigger>
+
+              <PopoverContent
+                className="w-72 p-0 rounded-2xl bg-white shadow-lg border border-gray-200"
+                side="bottom"
+                align="start"
+                sideOffset={8}
+              >
+                <div role="menu" aria-label="Reply options" className="p-4">
+                  <div className="mb-3">
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Who can reply and quote
+                    </span>
+                  </div>
+
+                  <ul className="space-y-1">
+                    {ReplyOptions.map((rp) => (
+                      <li key={rp.id}>
+                        <button
+                          role="menuitem"
+                          type="button"
+                          onClick={() => {
+                            dispatch({ type: "SET_ACTIVE", payload: rp.name });
+                            dispatch({ type: "SET_POPOVER", payload: false });
+                          }}
+                          className="w-full text-left px-3 py-2.5 transition-colors hover:bg-gray-50 cursor-pointer rounded-lg group"
+                        >
+                          <div className="flex justify-between items-center gap-x-3">
+                            <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">
+                              {rp.displayName}
+                            </span>
+                            {state.isActive === rp.name && <Check size={18} />}
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="mt-2 pt-2 border-t border-gray-100">
+                    <div className="flex items-center justify-between w-full px-3 py-2.5 transition-all hover:bg-gray-50 cursor-pointer rounded-lg group active:scale-95">
+                      <Label
+                        htmlFor="review-approve"
+                        className="text-sm font-medium text-gray-700 group-hover:text-gray-900 cursor-pointer"
+                      >
+                        Review and approve replies
+                      </Label>
+                      <Switch
+                        id="review-approve"
+                        checked={state.reviewApprove}
+                        onCheckedChange={(v) =>
+                          dispatch({ type: "SET_REVIEW", payload: v })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
             <button
               onClick={() => {
-                if (postContent.trim()) {
-                  console.log("Posted:", postContent);
-                  setPostContent("");
-                  setUploadedImages([]);
+                if (state.postContent.trim()) {
+                  console.log("Posted:", state.postContent);
+                  dispatch({ type: "CLEAR_ALL" });
                   prevUrlsRef.current.forEach(revoke);
                   prevUrlsRef.current = [];
                   setShowPostDialog(false);
                 }
               }}
-              disabled={!postContent.trim()}
+              disabled={!state.postContent.trim()}
               className="px-6 py-1.5 rounded-full text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-gray-400 hover:text-gray-600"
             >
               Post

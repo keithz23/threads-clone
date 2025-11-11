@@ -8,6 +8,13 @@ export default registerAs('config', () => ({
     url: process.env.POSTGRES_URL,
   },
 
+  aws: {
+    accessKey: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY_ID,
+    region: process.env.AWS_REGION,
+    bucket: process.env.AWS_BUCKET_NAME,
+  },
+
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
     port: process.env.REDIS_PORT || 6380,

@@ -1,34 +1,43 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseInterceptors,
+  UploadedFiles,
+  Req,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
+import { ImageValidationPipe } from 'src/common/pipes/file-validation.pipe';
 import { UpdatePostDto } from './dto/update-post.dto';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 
 @Controller('posts')
 export class PostsController {
   constructor(private readonly postsService: PostsService) {}
 
   @Post()
-  create(@Body() createPostDto: CreatePostDto) {
-    return this.postsService.create(createPostDto);
-  }
+  @UseInterceptors(FilesInterceptor('images', 10)) // Max 10 images
+  async create(
+    @Body() createPostDto: CreatePostDto,
+    @UploadedFiles(new ImageValidationPipe()) images: Express.Multer.File[],
+    @CurrentUser('id') userId: string,
+  ) {
+    const post = await this.postsService.createSync(
+      userId,
+      createPostDto,
+      images,
+    );
 
-  @Get()
-  findAll() {
-    return this.postsService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.postsService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updatePostDto: UpdatePostDto) {
-    return this.postsService.update(+id, updatePostDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.postsService.remove(+id);
+    return {
+      message: 'Post created successfully',
+      data: post,
+    };
   }
 }

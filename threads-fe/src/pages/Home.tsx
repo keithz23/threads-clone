@@ -94,32 +94,36 @@ export default function Home() {
       {data?.data?.map((post: Post) => (
         <div
           key={post.id}
-          className="flex p-5 gap-x-3 border-b border-gray-200 w-full"
+          className="p-5 gap-x-3 border-b border-gray-200 w-full"
         >
-          <div>
-            
-            <img
-              src={
-                post.user?.avatarUrl ||
-                `https://static.cdninstagram.com/rsrc.php/ye/r/lEu8iVizmNW.ico`
-              }
-              className="rounded-full w-10 h-10 object-cover"
-              alt={post.user?.username || "User avatar"}
-            />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-x-2">
+              <img
+                src={
+                  post.user?.avatarUrl ||
+                  `https://static.cdninstagram.com/rsrc.php/ye/r/lEu8iVizmNW.ico`
+                }
+                className="rounded-full w-10 h-10 object-cover"
+                alt={post.user?.username || "User avatar"}
+              />
+              {post.user?.username || "Anonymous"}
+              <span className="text-gray-400 text-sm">
+                {formatDistanceToNow(new Date(post.createdAt), {
+                  addSuffix: false,
+                  locale: enUS,
+                }).replace("about ", "")}
+              </span>
+            </div>
+            <div className="group cursor-pointer rounded-full transition-all duration-200 p-3 hover:bg-gray-100 active:scale-95 flex items-center gap-x-1.5">
+              <span className="text-gray-500 group-hover:text-black transition-colors duration-150">
+                <Ellipsis size={15} />
+              </span>
+            </div>
           </div>
-          <div className="flex-1">
-            <ul className="space-y-2 px-2">
-              <li className="font-medium">
-                <div className="flex items-center gap-x-3">
-                  {post.user?.username || "Anonymous"}
-                  <span className="text-gray-400 text-sm">
-                    {formatDistanceToNow(new Date(post.createdAt), {
-                      addSuffix: false,
-                      locale: enUS,
-                    }).replace("khoảng ", "")}
-                  </span>
-                </div>
-              </li>
+
+          <div>
+            <ul className="space-y-2">
+              <li className="font-edium"></li>
               <li className="text-justify">{post.content}</li>
 
               {/* Media Carousel */}
@@ -154,29 +158,24 @@ export default function Home() {
               <li>
                 <div className="flex gap-x-5">
                   {post_btn.map((btn) => (
-                    <div
+                    <button
                       key={btn.id}
-                      className="group cursor-pointer rounded-full transition-colors duration-150 p-2 hover:bg-gray-50 hover:shadow"
+                      className="group cursor-pointer rounded-full transition-all duration-200 px-3 py-2 hover:bg-gray-100 active:scale-95 flex items-center gap-x-1.5"
                     >
-                      <span className="flex items-center justify-center text-gray-500 group-hover:text-black transition-colors duration-150">
+                      <span className="text-gray-600 group-hover:text-gray-900 transition-colors duration-200">
                         {btn.icon}
-                        <span className="ml-1">
-                          {btn.name === "heart" && (post.likeCount || 0)}
-                          {btn.name === "message" && (post.replyCount || 0)}
-                          {btn.name === "repeat" && (post.repostCount || 0)}
-                          {btn.name === "send" && (post.viewCount || 0)}
-                        </span>
                       </span>
-                    </div>
+                      <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors duration-200">
+                        {btn.name === "heart" && (post.likeCount || 0)}
+                        {btn.name === "message" && (post.replyCount || 0)}
+                        {btn.name === "repeat" && (post.repostCount || 0)}
+                        {btn.name === "send" && (post.viewCount || 0)}
+                      </span>
+                    </button>
                   ))}
                 </div>
               </li>
             </ul>
-          </div>
-          <div className="group cursor-pointer rounded-full transition-colors duration-150 p-2 hover:bg-gray-50 hover:shadow h-8">
-            <span className="text-gray-500 group-hover:text-black transition-colors duration-150">
-              <Ellipsis size={15} />
-            </span>
           </div>
         </div>
       ))}

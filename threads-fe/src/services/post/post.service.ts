@@ -8,7 +8,15 @@ export const PostService = {
 
     Object.entries(createPostDto).forEach(([key, val]) => {
       if (val === undefined || val === null) return;
-      if (typeof val === "boolean" || typeof val === "number") {
+
+      if (typeof val === "boolean") {
+        if (val === true) {
+          form.append(key, "true");
+        }
+        return;
+      }
+
+      if (typeof val === "number") {
         form.append(key, String(val));
       } else {
         form.append(key, String(val));

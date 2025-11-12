@@ -29,7 +29,7 @@ export function usePost() {
       return res.data;
     },
 
-    onMutate: async (variables) => {
+    onMutate: async () => {
       // Cancel outgoing refetches
       await qc.cancelQueries({ queryKey: ["posts"] });
 
@@ -39,8 +39,7 @@ export function usePost() {
       return { previousPosts };
     },
 
-    onSuccess: (data) => {
-      // Invalidate và refetch
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["posts"] });
       qc.invalidateQueries({ queryKey: ["user-posts"] });
 

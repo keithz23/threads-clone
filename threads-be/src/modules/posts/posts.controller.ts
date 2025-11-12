@@ -29,6 +29,7 @@ export class PostsController {
     @UploadedFiles(new ImageValidationPipe()) images: Express.Multer.File[],
     @CurrentUser('id') userId: string,
   ) {
+    console.log(`create post dto::: ${JSON.stringify(createPostDto)}`);
     const post = await this.postsService.createSync(
       userId,
       createPostDto,

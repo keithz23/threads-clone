@@ -4,6 +4,7 @@ import React, {
   useReducer,
   useCallback,
   useMemo,
+  useState,
 } from "react";
 import {
   BookCopy,
@@ -32,6 +33,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Switch } from "./ui/switch";
 import { Label } from "./ui/label";
 import { usePost } from "@/hooks/usePost";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 
 const ReplyOptions = [
   { id: 1, displayName: "Anyone", replyPolicyName: "ANYONE", name: "anyone" },
@@ -50,7 +61,7 @@ const ReplyOptions = [
   {
     id: 4,
     displayName: "Profiles you mention",
-    replyPolicyName: "MENTION",
+    replyPolicyName: "MENTIONS",
     name: "profilesYourMetion",
   },
 ];
@@ -64,9 +75,7 @@ type ThreadsPostDialogProps = {
 
 type State = {
   postContent: string;
-  // preview URLs for images
   uploadedImages: string[];
-  // actual File objects to upload
   uploadedFiles: File[];
   showEmojiPicker: boolean;
   isActive: string;
@@ -137,12 +146,16 @@ export default function ThreadsPostDialog({
   setShowPostDialog,
 }: ThreadsPostDialogProps) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
   const prevUrlsRef = useRef<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
   const { user } = useAuth();
-  const { createPost, isCreating } = usePost(); // hook
+  const { createPost, isCreating } = usePost();
+
+  const hasContent =
+    state.postContent.trim().length > 0 || state.uploadedFiles.length > 0;
 
   const revoke = useCallback((url: string | null) => {
     if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
@@ -197,7 +210,6 @@ export default function ThreadsPostDialog({
         prevUrlsRef.current.push(...newUrls);
       }
 
-      // reset input so same file can be chosen again
       e.target.value = "";
     },
     [toast]
@@ -214,6 +226,37 @@ export default function ThreadsPostDialog({
     },
     [state.uploadedImages, revoke]
   );
+
+  const cleanupAndClose = useCallback(() => {
+    prevUrlsRef.current.forEach(revoke);
+    prevUrlsRef.current = [];
+    dispatch({ type: "CLEAR_ALL" });
+    setShowPostDialog(false);
+  }, [revoke, setShowPostDialog]);
+
+  const handleCancel = useCallback(() => {
+    if (hasContent) {
+      setShowExitConfirm(true);
+    } else {
+      cleanupAndClose();
+    }
+  }, [hasContent, cleanupAndClose]);
+
+  const handleDialogChange = useCallback(
+    (open: boolean) => {
+      if (!open && hasContent) {
+        setShowExitConfirm(true);
+      } else if (!open) {
+        cleanupAndClose();
+      }
+    },
+    [hasContent, cleanupAndClose]
+  );
+
+  const handleConfirmExit = useCallback(() => {
+    setShowExitConfirm(false);
+    cleanupAndClose();
+  }, [cleanupAndClose]);
 
   useEffect(() => {
     return () => {
@@ -281,11 +324,7 @@ export default function ThreadsPostDialog({
       },
       {
         onSuccess: () => {
-          // clear previews and files
-          prevUrlsRef.current.forEach(revoke);
-          prevUrlsRef.current = [];
-          dispatch({ type: "CLEAR_ALL" });
-          setShowPostDialog(false);
+          cleanupAndClose();
         },
         onError: (err: any) => {
           console.error("Create post failed:", err);
@@ -298,8 +337,7 @@ export default function ThreadsPostDialog({
     state.isActive,
     state.reviewApprove,
     createPost,
-    revoke,
-    setShowPostDialog,
+    cleanupAndClose,
     toast,
   ]);
 
@@ -313,19 +351,14 @@ export default function ThreadsPostDialog({
         className="hidden"
         onChange={handleFileChange}
       />
-      <Dialog open={showPostDialog} onOpenChange={setShowPostDialog}>
+
+      <Dialog open={showPostDialog} onOpenChange={handleDialogChange}>
         <DialogContent className="max-w-xl p-0">
           <DialogHeader className="border-b px-4 py-3">
             <DialogTitle>
               <div className="flex items-center justify-between">
                 <button
-                  onClick={() => {
-                    // cleanup previews when cancel
-                    prevUrlsRef.current.forEach(revoke);
-                    prevUrlsRef.current = [];
-                    dispatch({ type: "CLEAR_ALL" });
-                    setShowPostDialog(false);
-                  }}
+                  onClick={handleCancel}
                   className="text-base font-normal text-gray-900 hover:text-gray-600 cursor-pointer"
                 >
                   Cancel
@@ -385,8 +418,23 @@ export default function ThreadsPostDialog({
                   }
                   placeholder="What's new?"
                   className="w-full resize-none border-none outline-none text-gray-900 placeholder-gray-400 text-base"
+                  maxLength={5000}
                   rows={4}
                 />
+
+                <div className="text-right mt-1">
+                  <span
+                    className={`text-xs ${
+                      state.postContent.length > 4500
+                        ? "text-red-500 font-semibold"
+                        : state.postContent.length > 4000
+                        ? "text-orange-500"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    {state.postContent.length} / 5000
+                  </span>
+                </div>
 
                 {state.uploadedImages.length > 0 && (
                   <Carousel
@@ -563,6 +611,27 @@ export default function ThreadsPostDialog({
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard thread?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Are you sure you want to discard this
+              thread?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmExit}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useToast } from "@/components/Toast";
 import type { CreatePostDto } from "@/interfaces/post/post.interface";
 import { PostService } from "@/services/post/post.service";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 function extractErrMsg(err: unknown): string {
   const anyErr = err as any;
@@ -57,11 +57,22 @@ export function usePost() {
     },
   });
 
+  const getPostsByUser = useQuery({
+    queryKey: ["posts"],
+    queryFn: async () => {
+      const res = await PostService.getPostsByUser();
+      return res.data;
+    },
+  });
+
   return {
+    // Query
+    postsByUser: getPostsByUser.data || [],
     // Mutations
     createPost,
 
     // Loading states
+    isLoading: getPostsByUser.isLoading,
     isCreating: createPost.isPending,
   };
 }

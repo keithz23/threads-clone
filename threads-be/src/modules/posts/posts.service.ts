@@ -48,7 +48,7 @@ export class PostsService {
       try {
         uploadResults = await this.s3Service.uploadImages(
           images,
-          `posts/${userId}`,
+          `public/posts/${userId}`,
           { resize: true, quality: 85 },
         );
         uploadedKeys.push(...uploadResults.map((r) => r.key));
@@ -152,6 +152,42 @@ export class PostsService {
       const keys = post.media.map((m) => this.extractKeyFromUrl(m.mediaUrl));
       await this.scheduleCleanup(keys, 'post_deleted');
     }
+  }
+
+  async getPostsByUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    const posts = await this.prisma.post.findMany({
+      where: { userId },
+      include: {
+        media: true,
+        user: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+            verified: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+            replies: true,
+            reposts: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return posts;
   }
 
   // Get post by ID

@@ -63,6 +63,6 @@ export class SocketRedisService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     await this.pubClient?.quit();
     await this.subClient?.quit();
-    console.log('🔌 Socket.IO Redis clients disconnected');
+    this.logger.log('Socket.IO Redis clients disconnected');
   }
 }

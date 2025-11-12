@@ -5,24 +5,16 @@ import Search from "./Search";
 import Activity from "./Activity";
 import Profile from "./Profile";
 import Messages from "./Messages";
-
 import { useLocation, useParams } from "react-router-dom";
 import { pathToTab, type TabKey } from "@/utils/tabPathMap";
+import { MobileHeader } from "@/components/MobileHeader";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 
 export default function Dashboard() {
-  // URL -> tab
   const { pathname } = useLocation();
   const { handle } = useParams();
   const activeTab = pathToTab(pathname) as TabKey;
   const isMessages = activeTab === "messages";
-
-  const containerClass =
-    "grid grid-cols-1 min-h-[100dvh] " +
-    (isMessages
-      ? "md:[grid-template-columns:80px_1fr]"
-      : "md:[grid-template-columns:80px_1fr_220px]");
-
-  // Header title
   const headerTitle =
     activeTab === "profile"
       ? handle
@@ -38,30 +30,42 @@ export default function Dashboard() {
   };
 
   return (
-    <div className={containerClass}>
-      {/* Sidebar */}
-      <aside className={isMessages ? "hidden md:block" : "contents md:block"}>
-        <Sidebar />
-      </aside>
+    <div className="flex min-h-screen flex-col">
+      <MobileHeader />
 
-      {/* Middle */}
-      <main className="col-span-1 flex flex-col h-[100dvh] overflow-hidden">
-        {/* Header desktop */}
-        {!isMessages && (
-          <div className="w-full p-4 flex-shrink-0 hidden md:flex">
-            <div className="flex items-center justify-center w-full">
+      <div
+        className={`
+          grid flex-1
+          ${
+            isMessages
+              ? "grid-cols-1 md:grid-cols-[80px_1fr]"
+              : "grid-cols-1 md:grid-cols-[80px_1fr_220px]"
+          }
+        `}
+      >
+        {/* Desktop Sidebar */}
+        <aside className="hidden md:block">
+          <Sidebar />
+        </aside>
+
+        {/* Main */}
+        <main className="col-span-1 flex flex-col h-[100dvh] overflow-hidden">
+          {/* Desktop header */}
+          {!isMessages && (
+            <div className="hidden md:flex w-full p-4 flex-shrink-0 items-center justify-center">
               <span className="font-semibold text-xl">{headerTitle}</span>
             </div>
-          </div>
-        )}
+          )}
+          
+          {isMessages ? (
+            <Messages />
+          ) : (
+            tabContent[activeTab as Exclude<TabKey, "messages">]
+          )}
+        </main>
+      </div>
 
-        {/* Content */}
-        {isMessages ? (
-          <Messages />
-        ) : (
-          tabContent[activeTab as Exclude<TabKey, "messages">]
-        )}
-      </main>
+      <MobileBottomNav />
     </div>
   );
 }

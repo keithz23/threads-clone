@@ -23,4 +23,8 @@ export const PostService = {
 
     return instance.post(Post.CREATE_POST, form);
   },
+
+  getPostsByUser: () => {
+    return instance.get(Post.GET_POSTS_BY_USER);
+  },
 };

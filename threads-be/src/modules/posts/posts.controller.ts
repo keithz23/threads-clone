@@ -40,4 +40,9 @@ export class PostsController {
       data: post,
     };
   }
+
+  @Get('get-posts-by-user')
+  async getPostsByUser(@CurrentUser('id') userId: string) {
+    return await this.postsService.getPostsByUser(userId);
+  }
 }

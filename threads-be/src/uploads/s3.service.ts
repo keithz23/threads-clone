@@ -19,16 +19,14 @@ export class S3Service {
   constructor(private configService: ConfigService) {
     this.region = this.configService.get<string>('config.aws.region') ?? '';
     this.bucketName = this.configService.get<string>('config.aws.bucket') ?? '';
-
     this.s3Client = new S3Client({
       region: this.region,
       credentials: {
         accessKeyId: this.configService.get('config.aws.accessKey') ?? '',
-        secretAccessKey: this.configService.get('config.aws.secretKey') ?? '',
+        secretAccessKey:
+          this.configService.get('config.aws.secretAccessKey') ?? '',
       },
     });
-
-    console.log(this.configService.get('config.aws.accessKey'));
   }
 
   // Upload single image with optimization
@@ -60,7 +58,7 @@ export class S3Service {
         Key: key,
         Body: buffer,
         ContentType: mimetype,
-        ACL: 'public-read',
+        // ACL: 'public-read',
       });
 
       await this.s3Client.send(command);
@@ -105,7 +103,7 @@ export class S3Service {
       Bucket: this.bucketName,
       Key: key,
       Body: buffer,
-      ContentType: 'image/jpeg',
+      ContentType: 'image/gif',
       ACL: 'public-read',
     });
 

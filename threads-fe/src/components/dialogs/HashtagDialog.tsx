@@ -138,7 +138,7 @@ export default function HashtagDialog({
                     onChange={(e) => onCurrentHashtagChange(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="Enter hashtag"
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none transition-shadow"
                     onFocus={() => {
                       if (filteredHashtags.length > 0) setShowSuggestions(true);
                     }}

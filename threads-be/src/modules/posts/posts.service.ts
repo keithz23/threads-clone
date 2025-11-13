@@ -118,7 +118,7 @@ export class PostsService {
     });
   }
 
-  // Delete post với cleanup job
+  // Delete post with cleanup job
   async delete(postId: string, userId: string) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },

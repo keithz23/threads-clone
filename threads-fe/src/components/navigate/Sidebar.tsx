@@ -1,17 +1,21 @@
 import { TextAlignStart, Send } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import { Separator } from "./ui/separator";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { Separator } from "../ui/separator";
 import { useAuth } from "@/hooks/useAuth";
-import { Badge } from "./ui/badge";
+import { Badge } from "../ui/badge";
 import { useLocation, useNavigate } from "react-router-dom";
 import { pathToTab, tabToPath, type TabKey } from "@/utils/tabPathMap";
 import { userMenu } from "@/constants/item/userMenu";
 import { makeTabs } from "@/constants/tabs/sidebarTab";
 import useNotificationsFromProvider from "@/hooks/useNotifications";
 import { useState } from "react";
-import ThreadsPostDialog from "./ThreadsPostDialog";
+import ThreadsPostDialog from "../ThreadsPostDialog";
 
-export default function Sidebar() {
+type SidebarProps = {
+  allHashtags: string[];
+};
+
+export default function Sidebar({ allHashtags }: SidebarProps) {
   const { notifications } = useNotificationsFromProvider();
   const [showPostDialog, setShowPostDialog] = useState(false);
   const { logout, user } = useAuth();
@@ -186,6 +190,7 @@ export default function Sidebar() {
       <ThreadsPostDialog
         showPostDialog={showPostDialog}
         setShowPostDialog={setShowPostDialog}
+        allHashtags={allHashtags}
       />
     </>
   );

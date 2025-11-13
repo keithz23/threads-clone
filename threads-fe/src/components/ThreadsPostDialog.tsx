@@ -16,6 +16,7 @@ import {
   Hash,
   SlidersVertical,
   Check,
+  ChevronRight,
 } from "lucide-react";
 import {
   Dialog,
@@ -43,6 +44,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
+import HashtagDialog from "./dialogs/HashtagDialog";
+import { useHashtag } from "@/hooks/useHashtag";
 
 const ReplyOptions = [
   { id: 1, displayName: "Anyone", replyPolicyName: "ANYONE", name: "anyone" },
@@ -71,6 +74,7 @@ const maxSizeMB = 10;
 type ThreadsPostDialogProps = {
   showPostDialog: boolean;
   setShowPostDialog: (s: boolean) => void;
+  allHashtags: string[];
 };
 
 type State = {
@@ -81,6 +85,9 @@ type State = {
   isActive: string;
   isPopoverOpen: boolean;
   reviewApprove: boolean;
+  isHashtagOpen: boolean;
+  hashtags: string[];
+  currentHashtag: string;
 };
 
 type Action =
@@ -90,8 +97,12 @@ type Action =
   | { type: "CLEAR_IMAGES" }
   | { type: "TOGGLE_EMOJI" }
   | { type: "SET_POPOVER"; payload: boolean }
+  | { type: "SET_HASHTAG_POPOVER"; payload: boolean }
   | { type: "SET_ACTIVE"; payload: string }
   | { type: "SET_REVIEW"; payload: boolean }
+  | { type: "ADD_HASHTAG"; payload: string }
+  | { type: "REMOVE_HASHTAG"; payload: number }
+  | { type: "SET_CURRENT_HASHTAG"; payload: string }
   | { type: "CLEAR_ALL" };
 
 const initialState: State = {
@@ -102,6 +113,9 @@ const initialState: State = {
   isActive: "",
   isPopoverOpen: false,
   reviewApprove: false,
+  isHashtagOpen: false,
+  hashtags: [],
+  currentHashtag: "",
 };
 
 function reducer(state: State, action: Action): State {
@@ -130,10 +144,28 @@ function reducer(state: State, action: Action): State {
       return { ...state, showEmojiPicker: !state.showEmojiPicker };
     case "SET_POPOVER":
       return { ...state, isPopoverOpen: action.payload };
+    case "SET_HASHTAG_POPOVER":
+      return { ...state, isHashtagOpen: action.payload };
     case "SET_ACTIVE":
       return { ...state, isActive: action.payload };
     case "SET_REVIEW":
       return { ...state, reviewApprove: action.payload };
+    case "ADD_HASHTAG":
+      if (!action.payload.trim() || state.hashtags.includes(action.payload)) {
+        return state;
+      }
+      return {
+        ...state,
+        hashtags: [...state.hashtags, action.payload],
+        currentHashtag: "",
+      };
+    case "REMOVE_HASHTAG":
+      return {
+        ...state,
+        hashtags: state.hashtags.filter((_, i) => i !== action.payload),
+      };
+    case "SET_CURRENT_HASHTAG":
+      return { ...state, currentHashtag: action.payload };
     case "CLEAR_ALL":
       return { ...initialState };
     default:
@@ -144,15 +176,18 @@ function reducer(state: State, action: Action): State {
 export default function ThreadsPostDialog({
   showPostDialog,
   setShowPostDialog,
+  allHashtags,
 }: ThreadsPostDialogProps) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const prevUrlsRef = useRef<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const hashtagInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
   const { user } = useAuth();
   const { createPost, isCreating } = usePost();
+  const { createHashtag } = useHashtag();
 
   const hasContent =
     state.postContent.trim().length > 0 || state.uploadedFiles.length > 0;
@@ -258,6 +293,47 @@ export default function ThreadsPostDialog({
     cleanupAndClose();
   }, [cleanupAndClose]);
 
+  const handleAddHashtag = useCallback(() => {
+    const tag = state.currentHashtag.trim().replace(/^#/, "");
+
+    if (!tag) return;
+
+    const isExisting = allHashtags.some(
+      (h) => h.toLowerCase() === tag.toLowerCase()
+    );
+
+    if (!isExisting) {
+      createHashtag.mutate({
+        createHashtagDto: {
+          hashtagName: tag,
+        },
+      });
+    }
+
+    dispatch({ type: "ADD_HASHTAG", payload: tag });
+
+    hashtagInputRef.current?.focus();
+  }, [state.currentHashtag, createHashtag, allHashtags]);
+
+  const handleHashtagKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleAddHashtag();
+      }
+    },
+    [handleAddHashtag]
+  );
+
+  const handleInsertHashtags = useCallback(() => {
+    if (state.hashtags.length > 0) {
+      const newContent = state.postContent;
+      dispatch({ type: "SET_CONTENT", payload: newContent });
+    }
+    dispatch({ type: "SET_HASHTAG_POPOVER", payload: false });
+    textareaRef.current?.focus();
+  }, [state.hashtags, state.postContent]);
+
   useEffect(() => {
     return () => {
       prevUrlsRef.current.forEach(revoke);
@@ -282,7 +358,7 @@ export default function ThreadsPostDialog({
         id: 3,
         name: "hash",
         icon: <Hash size={20} className="text-gray-600" />,
-        onClick: () => toast.error("Coming soon"),
+        onClick: () => dispatch({ type: "SET_HASHTAG_POPOVER", payload: true }),
       },
       {
         id: 4,
@@ -401,13 +477,18 @@ export default function ThreadsPostDialog({
               </div>
 
               <div className="flex-1">
-                <div className="mb-2">
+                <div className="flex gap-x-1 items-center mb-2">
                   <span className="font-semibold text-gray-900">
                     {user?.data?.username || "lunez195"}
                   </span>
-                  <button className="ml-2 text-gray-500 text-sm">
-                    Add a topic
-                  </button>
+                  <ChevronRight size={18} className="text-gray-400" />
+                  <input
+                    type="text"
+                    name="topic"
+                    id="add-to-topic"
+                    className="text-sm p-2 focus:outline-none"
+                    placeholder="Add a topic"
+                  />
                 </div>
 
                 <textarea
@@ -421,6 +502,44 @@ export default function ThreadsPostDialog({
                   maxLength={5000}
                   rows={4}
                 />
+
+                {/* Hashtags Display Section */}
+                {state.hashtags.length > 0 && (
+                  <div>
+                    {state.hashtags.map((tag, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-gray-700 rounded-full text-sm"
+                      >
+                        #{tag}
+                        <button
+                          onClick={() =>
+                            dispatch({
+                              type: "REMOVE_HASHTAG",
+                              payload: index,
+                            })
+                          }
+                          className="hover:bg-blue-100 rounded-full p-0.5 transition-colors cursor-pointer ml-0.5"
+                          aria-label={`Remove ${tag}`}
+                        >
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 <div className="text-right mt-1">
                   <span
@@ -604,7 +723,7 @@ export default function ThreadsPostDialog({
                 isCreating ||
                 (!state.postContent.trim() && state.uploadedFiles.length === 0)
               }
-              className="px-6 py-1.5 rounded-full text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-gray-400 hover:text-gray-600"
+              className="cursor-pointer border px-6 py-1.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-gray-400 hover:text-gray-600"
             >
               {isCreating ? "Posting..." : "Post"}
             </button>
@@ -612,6 +731,26 @@ export default function ThreadsPostDialog({
         </DialogContent>
       </Dialog>
 
+      {/* Hashtag Dialog */}
+      <HashtagDialog
+        allHashtags={allHashtags}
+        isOpen={state.isHashtagOpen}
+        onOpenChange={(open) =>
+          dispatch({ type: "SET_HASHTAG_POPOVER", payload: open })
+        }
+        currentHashtag={state.currentHashtag}
+        hashtags={state.hashtags}
+        hashtagInputRef={hashtagInputRef}
+        onCurrentHashtagChange={(value) =>
+          dispatch({ type: "SET_CURRENT_HASHTAG", payload: value })
+        }
+        onAddHashtag={handleAddHashtag}
+        onRemoveHashtag={(index) =>
+          dispatch({ type: "REMOVE_HASHTAG", payload: index })
+        }
+        onInsertHashtags={handleInsertHashtags}
+        onHashtagKeyDown={handleHashtagKeyDown}
+      />
       <AlertDialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>

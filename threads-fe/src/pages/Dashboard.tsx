@@ -1,4 +1,4 @@
-import Sidebar from "../components/Sidebar";
+import Sidebar from "../components/navigate/Sidebar";
 import { type JSX } from "react";
 import Home from "./Home";
 import Search from "./Search";
@@ -7,14 +7,17 @@ import Profile from "./Profile";
 import Messages from "./Messages";
 import { useLocation, useParams } from "react-router-dom";
 import { pathToTab, type TabKey } from "@/utils/tabPathMap";
-import { MobileHeader } from "@/components/MobileHeader";
-import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { MobileHeader } from "@/components/navigate/MobileHeader";
+import { MobileBottomNav } from "@/components/navigate/MobileBottomNav";
+import { useHashtag } from "@/hooks/useHashtag";
 
 export default function Dashboard() {
+  const { allHashtags } = useHashtag();
   const { pathname } = useLocation();
   const { handle } = useParams();
   const activeTab = pathToTab(pathname) as TabKey;
   const isMessages = activeTab === "messages";
+  const hashtagNames = allHashtags.data || [];
   const headerTitle =
     activeTab === "profile"
       ? handle
@@ -45,7 +48,7 @@ export default function Dashboard() {
       >
         {/* Desktop Sidebar */}
         <aside className="hidden md:block">
-          <Sidebar />
+          <Sidebar allHashtags={hashtagNames} />
         </aside>
 
         {/* Main */}
@@ -56,7 +59,7 @@ export default function Dashboard() {
               <span className="font-semibold text-xl">{headerTitle}</span>
             </div>
           )}
-          
+
           {isMessages ? (
             <Messages />
           ) : (
@@ -65,7 +68,7 @@ export default function Dashboard() {
         </main>
       </div>
 
-      <MobileBottomNav />
+      <MobileBottomNav allHashtags={hashtagNames} />
     </div>
   );
 }

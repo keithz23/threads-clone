@@ -39,8 +39,12 @@ export class S3Service {
       let buffer = file.buffer;
       let mimetype = file.mimetype;
 
-      // Resize and optimize
-      if (options?.resize) {
+      // CHỈ process ảnh tĩnh, GIF upload trực tiếp
+      const isStaticImage = ['image/jpeg', 'image/png', 'image/webp'].includes(
+        mimetype,
+      );
+
+      if (options?.resize && isStaticImage) {
         buffer = await sharp(file.buffer)
           .resize(1920, 1080, {
             fit: 'inside',
@@ -58,7 +62,8 @@ export class S3Service {
         Key: key,
         Body: buffer,
         ContentType: mimetype,
-        // ACL: 'public-read',
+        ContentDisposition: 'inline',
+        CacheControl: 'public, max-age=31536000, immutable',
       });
 
       await this.s3Client.send(command);

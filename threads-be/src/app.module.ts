@@ -25,6 +25,7 @@ import { FeedModule } from './modules/feed/feed.module';
 import { CacheModule } from './modules/cache/cache.module';
 import { TasksModule } from './tasks/tasks.module';
 import { SuggestionsModule } from './modules/suggestions/suggestions.module';
+import { HashtagsModule } from './modules/hashtags/hashtags.module';
 
 // Guards
 import { APP_GUARD } from '@nestjs/core';
@@ -122,6 +123,7 @@ import { UploadModule } from './uploads/upload.module';
     SocketModule,
     SuggestionsModule,
     UploadModule,
+    HashtagsModule
   ],
   providers: [
     // Global guards

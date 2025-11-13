@@ -9,6 +9,11 @@ import type { Post } from "@/interfaces/post/post.interface";
 import { Ellipsis, Heart, MessageCircle, Repeat, Send } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { enUS } from "date-fns/locale";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function Home() {
   const { postsByUser: data, isLoading } = usePost();
@@ -107,17 +112,37 @@ export default function Home() {
                 alt={post.user?.username || "User avatar"}
               />
               {post.user?.username || "Anonymous"}
-              <span className="text-gray-400 text-sm">
-                {formatDistanceToNow(new Date(post.createdAt), {
-                  addSuffix: false,
-                  locale: enUS,
-                }).replace("about ", "")}
-              </span>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className="text-gray-400 text-sm cursor-pointer hover:text-gray-300 transition-colors"
+                    suppressHydrationWarning
+                  >
+                    {formatDistanceToNow(new Date(post.createdAt), {
+                      addSuffix: false,
+                      locale: enUS,
+                    }).replace(/^khoảng\s|^about\s/, "")}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p suppressHydrationWarning>
+                    {new Date(post.createdAt).toLocaleString("en-us", {
+                      weekday: "short",
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
             </div>
             <div className="group cursor-pointer rounded-full transition-all duration-200 p-3 hover:bg-gray-100 active:scale-95 flex items-center gap-x-1.5">
-              <span className="text-gray-500 group-hover:text-black transition-colors duration-150">
+              <button className="text-gray-500 group-hover:text-black transition-colors duration-150">
                 <Ellipsis size={15} />
-              </span>
+              </button>
             </div>
           </div>
 

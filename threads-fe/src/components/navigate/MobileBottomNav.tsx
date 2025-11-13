@@ -2,11 +2,14 @@ import { makeTabs } from "@/constants/tabs/sidebarTab";
 import useNotificationsFromProvider from "@/hooks/useNotifications";
 import { useLocation, useNavigate } from "react-router-dom";
 import { pathToTab, tabToPath, type TabKey } from "@/utils/tabPathMap";
-import ThreadsPostDialog from "./ThreadsPostDialog";
+import ThreadsPostDialog from "../ThreadsPostDialog";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
-export function MobileBottomNav() {
+type MobileBottomNavProps = {
+  allHashtags: string[];
+};
+export function MobileBottomNav({ allHashtags }: MobileBottomNavProps) {
   const { user } = useAuth();
   const { notifications } = useNotificationsFromProvider();
   const [showPostDialog, setShowPostDialog] = useState(false);
@@ -53,6 +56,7 @@ export function MobileBottomNav() {
       <ThreadsPostDialog
         showPostDialog={showPostDialog}
         setShowPostDialog={setShowPostDialog}
+        allHashtags={allHashtags}
       />
     </>
   );

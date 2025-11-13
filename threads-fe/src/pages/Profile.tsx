@@ -526,7 +526,7 @@ export default function Profile() {
       </div>
 
       {/* Content */}
-      <div className="p-5 md:p-8">
+      <div className="p-5 md:p-4">
         <div
           id={`panel-${activeTab}`}
           role="tabpanel"

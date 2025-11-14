@@ -22,6 +22,15 @@ import {
 } from "@/components/ui/tooltip";
 import { useLikePost, useNewsfeed, useRepost } from "@/hooks/useNewsfeed";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 interface Post {
   id: string;
@@ -38,9 +47,16 @@ interface Post {
   author: {
     id: string;
     username: string;
+    bio: string;
     displayName: string;
     avatarUrl: string;
     verified: boolean;
+    followersCount: number;
+    following: {
+      id: string;
+      followerId: string;
+      followingId: string;
+    };
   };
   media: Array<{
     id: string;
@@ -87,6 +103,10 @@ function PostSkeleton() {
 // POST CARD COMPONENT
 // ============================================
 function PostCard({ post }: { post: Post }) {
+  const initials = (name: string) =>
+    name.trim().slice(0, 2).toUpperCase() || "??";
+  const [isFollowing, setIsFollowing] = useState(false);
+  const navigate = useNavigate();
   const likeMutation = useLikePost();
   const repostMutation = useRepost();
   // const bookmarkMutation = useBookmark();
@@ -97,6 +117,10 @@ function PostCard({ post }: { post: Post }) {
 
   const handleRepost = () => {
     repostMutation.mutate(post.id);
+  };
+
+  const handleNavigate = () => {
+    navigate(`@${post.author.username}`);
   };
 
   // const handleBookmark = () => {
@@ -114,23 +138,87 @@ function PostCard({ post }: { post: Post }) {
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-x-3 flex-1">
           {/* Avatar */}
-          <img
-            src={
-              post.author.avatarUrl ||
-              `https://ui-avatars.com/api/?name=${post.author.username}&background=random`
-            }
-            className="rounded-full w-10 h-10 object-cover flex-shrink-0"
-            alt={post.author?.username || "User avatar"}
-          />
+          <Avatar className="h-10 w-10 md:h-12 md:w-12">
+            <AvatarImage
+              src={
+                post.author.avatarUrl ||
+                `https://ui-avatars.com/api/?name=${post.author.username}&background=random`
+              }
+              alt={post.author?.username || "User avatar"}
+            />
+            <AvatarFallback>{initials(post.author.username)}</AvatarFallback>
+          </Avatar>
 
           <div className="flex-1 min-w-0">
             {/* User Info */}
             <div className="flex items-center gap-x-2 flex-wrap">
-              <span className="font-semibold text-sm hover:underline cursor-pointer">
-                {post.author.displayName ||
-                  post.author?.username ||
-                  "Anonymous"}
-              </span>
+              <HoverCard openDelay={200} closeDelay={100}>
+                <HoverCardTrigger asChild>
+                  <span
+                    className="font-semibold text-sm hover:underline cursor-pointer"
+                    onClick={handleNavigate}
+                  >
+                    {post.author.displayName ||
+                      post.author?.username ||
+                      "Anonymous"}
+                  </span>
+                </HoverCardTrigger>
+
+                <HoverCardContent
+                  className="w-80 p-0"
+                  side="bottom"
+                  align="start"
+                >
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-base leading-tight">
+                          {post.author.displayName}
+                        </h4>
+                        <p className="text-sm text-muted-foreground">
+                          @{post.author.username}
+                        </p>
+                      </div>
+                      <Avatar className="h-16 w-16">
+                        <AvatarImage
+                          src={post.author.avatarUrl}
+                          alt={post.author.displayName}
+                        />
+                        <AvatarFallback className="text-lg">
+                          {post.author.displayName?.charAt(0) || "A"}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
+
+                    {/* Bio */}
+                    {post.author.bio && (
+                      <p className="text-sm leading-relaxed">
+                        {post.author.bio}
+                      </p>
+                    )}
+
+                    <div className="flex gap-3 text-sm">
+                      <div>
+                        <span className="font-semibold">
+                          {post.author.followersCount.toLocaleString()}
+                        </span>
+                        <span className="text-muted-foreground ml-1">
+                          followers
+                        </span>
+                      </div>
+                    </div>
+
+                    <Button
+                      // onClick={handleFollowToggle}
+                      // variant={isFollowing ? "outline" : "default"}
+                      className="w-full cursor-pointer"
+                    >
+                      {/* {isFollowing ? "Following" : "Follow"} */}
+                      Follow
+                    </Button>
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
 
               {post.author.verified && <span className="text-blue-500">✓</span>}
 

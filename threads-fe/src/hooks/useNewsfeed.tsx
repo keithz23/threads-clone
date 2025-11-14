@@ -25,8 +25,15 @@ interface Post {
     id: string;
     username: string;
     displayName: string;
+    bio: string;
     avatarUrl: string;
     verified: boolean;
+    followersCount: number;
+    following: {
+      id: string;
+      followerId: string;
+      followingId: string;
+    };
   };
   media: Array<{
     id: string;

@@ -35,4 +35,20 @@ export const PostService = {
   getPostsByUser: () => {
     return instance.get(Post.GET_POSTS_BY_USER);
   },
+
+  getNewsFeedPost: (filter: string, limit = 10, cursor?: string) => {
+    const params = new URLSearchParams();
+    if (filter) params.append("filter", filter);
+    if (limit) params.append("limit", String(limit));
+    if (cursor) params.append("cursor", cursor);
+    return instance.get(`${Post.GET_NEWSFEED_POST}?${params.toString()}`);
+  },
+
+  toggleLike: (postId: string) => {
+    return instance.post(`${Post.TOGGLE_LIKE(postId)}`);
+  },
+
+  toggleRepost: (postId: string) => {
+    return instance.post(`${Post.TOGGLE_REPOST(postId)}`);
+  },
 };

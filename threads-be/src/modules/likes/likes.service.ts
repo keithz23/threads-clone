@@ -1,13 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { LikeDto } from './dto/create-like.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class LikesService {
   constructor(
     private readonly prisma: PrismaService,
-    private gateway: NotificationsGateway,
+    private notificationService: NotificationsService,
   ) {}
 
   async toggleLike(userId: string, likeDto: LikeDto) {
@@ -80,7 +80,7 @@ export class LikesService {
         },
       });
       if (userId !== postOwnerId) {
-        await this.gateway.sendNotification({
+        await this.notificationService.sendNotification({
           userId: postOwnerId,
           actorId: userId,
           postId: postId,
@@ -92,12 +92,8 @@ export class LikesService {
     });
 
     return {
-      success: true,
-      message: 'Post liked successfully',
-      data: {
-        liked: true,
-        like: result,
-      },
+      liked: true,
+      like: result,
     };
   }
 
@@ -136,11 +132,7 @@ export class LikesService {
     });
 
     return {
-      success: true,
-      message: 'Post unliked successfully',
-      data: {
-        liked: false,
-      },
+      liked: false,
     };
   }
 }

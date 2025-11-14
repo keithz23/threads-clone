@@ -8,5 +8,5 @@ export class LikeDto {
 
   @ApiProperty()
   @IsString()
-  postOwnerId: string;
+  postOwnerId?: string;
 }

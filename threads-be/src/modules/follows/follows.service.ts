@@ -5,13 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class FollowsService {
   constructor(
     private readonly prisma: PrismaService,
-    private notificationGateway: NotificationsGateway,
+    private notificationService: NotificationsService,
   ) {}
   async follow(followerId: string, followingId: string) {
     // Prevent self-following
@@ -77,7 +77,7 @@ export class FollowsService {
       return { createdFollow, updatedFollower, updatedFollowing };
     });
 
-    await this.notificationGateway.sendNotification({
+    await this.notificationService.sendNotification({
       userId: followingId, // recipient
       actorId: followerId, // actor
       type: 'FOLLOW',

@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { HashtagsService } from './hashtags.service';
 import { HashtagsController } from './hashtags.controller';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaModule } from 'src/prisma/prisma.module';
 
 @Module({
+  imports: [PrismaModule],
   controllers: [HashtagsController],
-  providers: [HashtagsService, PrismaService],
+  providers: [HashtagsService],
 })
 export class HashtagsModule {}

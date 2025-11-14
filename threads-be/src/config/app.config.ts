@@ -15,6 +15,10 @@ export default registerAs('config', () => ({
     bucket: process.env.AWS_BUCKET_NAME,
   },
 
+  cloudfront: {
+    domain: process.env.CLOUDFRONT_DOMAIN,
+  },
+
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
     port: process.env.REDIS_PORT || 6380,

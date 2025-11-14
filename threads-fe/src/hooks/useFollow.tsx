@@ -38,7 +38,11 @@ export function useFollow() {
 
       toast.success("Followed successfully.");
     },
-    onError: (err: unknown, variables, context) => {
+    onError: (
+      err: unknown,
+      _variables,
+      context: { previousSuggestions?: unknown } | undefined
+    ) => {
       if (context?.previousSuggestions) {
         qc.setQueryData(["suggestions"], context.previousSuggestions);
       }

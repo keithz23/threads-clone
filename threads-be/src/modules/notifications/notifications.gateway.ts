@@ -4,13 +4,12 @@ import {
   SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
-  MessageBody,
   ConnectedSocket,
+  MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { NotificationsService } from './notifications.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Logger } from '@nestjs/common';
-import { NotificationType } from '@prisma/client';
 
 @WebSocketGateway({
   cors: {
@@ -26,134 +25,91 @@ export class NotificationsGateway
   server: Server;
 
   private readonly logger = new Logger(NotificationsGateway.name);
-  private connectedUsers = new Map<string, string>();
+  private connectedUsers = new Map<string, string>(); // userId -> socketId
 
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(private readonly eventEmitter: EventEmitter2) {}
 
   handleConnection(client: Socket) {
     const userId = client.handshake.query.userId as string;
-
     if (userId) {
       this.connectedUsers.set(userId, client.id);
       this.logger.log(`User [${userId}] connected to notifications`);
-
-      // Send unread count
-      this.sendUnreadCount(userId);
+      this.eventEmitter.emit('notifications.connected', {
+        userId,
+        socketId: client.id,
+      });
     }
   }
 
   handleDisconnect(client: Socket) {
-    const userId = this.getUserIdFromSocket(client);
-
+    const userId = (client.handshake.query.userId as string) || null;
     if (userId) {
       this.connectedUsers.delete(userId);
       this.logger.log(`User [${userId}] disconnected from notifications`);
+      this.eventEmitter.emit('notifications.disconnected', {
+        userId,
+        socketId: client.id,
+      });
     }
   }
 
-  private getUserIdFromSocket(client: Socket): string | null {
-    return (client.handshake.query.userId as string) || null;
-  }
-
-  // ===== GET NOTIFICATIONS =====
+  // Client -> server messages;
   @SubscribeMessage('get-notifications')
-  async handleGetNotifications(@ConnectedSocket() client: Socket) {
-    const userId = this.getUserIdFromSocket(client);
-
+  handleGetNotifications(@ConnectedSocket() client: Socket) {
+    const userId = client.handshake.query.userId as string;
     if (!userId) {
-      return { error: 'User not authenticated' };
+      client.emit('notifications:error', { message: 'User not authenticated' });
+      return;
     }
-
-    const notifications =
-      await this.notificationsService.getNotifications(userId);
-
-    client.emit('notifications:initial', notifications);
-
-    return { notifications };
+    this.eventEmitter.emit('notifications.get', {
+      userId,
+      socketId: client.id,
+    });
   }
 
-  // ===== MARK AS READ =====
   @SubscribeMessage('mark-notification-read')
-  async handleMarkRead(
+  handleMarkRead(
     @MessageBody() data: { notificationId: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const userId = this.getUserIdFromSocket(client);
-
+    const userId = client.handshake.query.userId as string;
     if (!userId) {
-      return { error: 'User not authenticated' };
+      client.emit('notifications:error', { message: 'User not authenticated' });
+      return;
     }
-
-    await this.notificationsService.markAsRead(data.notificationId, userId);
-
-    // Update unread count
-    this.sendUnreadCount(userId);
-
-    return { success: true };
+    this.eventEmitter.emit('notifications.markRead', {
+      userId,
+      notificationId: data.notificationId,
+      socketId: client.id,
+    });
   }
 
-  // ===== MARK ALL AS READ =====
   @SubscribeMessage('mark-all-read')
-  async handleMarkAllRead(@ConnectedSocket() client: Socket) {
-    const userId = this.getUserIdFromSocket(client);
-
+  handleMarkAllRead(@ConnectedSocket() client: Socket) {
+    const userId = client.handshake.query.userId as string;
     if (!userId) {
-      return { error: 'User not authenticated' };
+      client.emit('notifications:error', { message: 'User not authenticated' });
+      return;
     }
-
-    await this.notificationsService.markAllAsRead(userId);
-
-    this.sendUnreadCount(userId);
-
-    return { success: true };
+    this.eventEmitter.emit('notifications.markAllRead', {
+      userId,
+      socketId: client.id,
+    });
   }
 
-  // ===== SEND NOTIFICATION  =====
-  async sendNotification(data: {
-    userId: string;
-    actorId: string;
-    type: NotificationType;
-    postId?: string;
-  }) {
-    // Don't send notification to yourself
-    if (data.userId === data.actorId) {
-      return null;
-    }
-
-    // Check for duplicate notification (optional)
-    const duplicate = await this.notificationsService.findDuplicate(data);
-    if (duplicate) {
-      this.logger.log(
-        `Duplicate notification prevented for user ${data.userId}`,
-      );
-      return duplicate;
-    }
-
-    // Create notification in database
-    const notification = await this.notificationsService.create(data);
-
-    // Send real-time notification if user is connected
-    const socketId = this.connectedUsers.get(data.userId);
-    if (socketId) {
-      this.server.to(socketId).emit('new-notification', notification);
-
-      // Update unread count
-      this.sendUnreadCount(data.userId);
-    }
-
-    return notification;
-  }
-
-  private async sendUnreadCount(userId: string) {
-    const count = await this.notificationsService.getUnreadCount(userId);
+  // ----- helper methods for service to call -----
+  emitToUserById(userId: string, event: string, payload: any) {
     const socketId = this.connectedUsers.get(userId);
-
     if (socketId) {
-      this.server.to(socketId).emit('unread-count', { count });
+      this.server.to(socketId).emit(event, payload);
     }
   }
 
-  isUserConnected(userId: string): boolean {
+  isUserConnected(userId: string) {
     return this.connectedUsers.has(userId);
+  }
+
+  getSocketId(userId: string) {
+    return this.connectedUsers.get(userId);
   }
 }

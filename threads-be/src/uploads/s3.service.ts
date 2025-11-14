@@ -167,7 +167,8 @@ export class S3Service {
 
   // Get file URL
   private getFileUrl(key: string): string {
-    return `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${key}`;
+    const cloudfrontDomain=this.configService.get<string>('config.cloudfront.domain')
+    return `${cloudfrontDomain}/${key}`;
   }
 
   // Extract key from URL

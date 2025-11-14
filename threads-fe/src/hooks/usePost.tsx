@@ -41,6 +41,7 @@ export function usePost() {
 
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["posts"] });
+      qc.invalidateQueries({ queryKey: ["newsfeed"] });
       qc.invalidateQueries({ queryKey: ["user-posts"] });
 
       toast.success("Post created successfully!");

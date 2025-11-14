@@ -190,6 +190,199 @@ export class PostsService {
     return posts;
   }
 
+  async getNewsFeedPost(
+    userId: string,
+    cursor?: string,
+    filter: string = 'all',
+    limit: number = 20,
+  ) {
+    const take = Math.min(Math.max(limit, 1), 100);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    let whereClause: any = {
+      isDeleted: false,
+      parentPostId: null,
+    };
+
+    if (filter === 'following' && userId) {
+      const following = await this.prisma.follow.findMany({
+        where: {
+          followerId: userId,
+        },
+        select: { following: true },
+      });
+
+      whereClause.userId = {
+        in: [...following.map((f) => f.following.id), userId],
+      };
+    }
+
+    const posts = await this.prisma.post.findMany({
+      take: take + 1,
+      skip: cursor ? 1 : 0,
+      cursor: cursor ? { id: cursor } : undefined,
+      where: whereClause,
+      orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+          },
+        },
+        media: {
+          orderBy: { createdAt: 'desc' },
+        },
+        ...(userId && {
+          likes: {
+            where: { userId },
+            select: { id: true },
+          },
+          reposts: {
+            where: { userId },
+            select: { id: true },
+          },
+          bookmarks: {
+            where: { userId },
+            select: { id: true },
+          },
+        }),
+        parentPost: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                avatarUrl: true,
+                verified: true,
+              },
+            },
+            media: true,
+          },
+        },
+      },
+    });
+
+    // Check if there are more posts
+    const hasMore = posts.length > limit;
+    const postsToReturn = hasMore ? posts.slice(0, -1) : posts;
+
+    // Format response
+    const formattedPosts = postsToReturn.map((post) => ({
+      id: post.id,
+      content: post.content,
+      createdAt: post.createdAt,
+      isPinned: post.isPinned,
+
+      // Counters
+      stats: {
+        replies: post.replyCount,
+        likes: post.likeCount,
+        reposts: post.repostCount,
+        bookmarks: post.bookmarkCount,
+        views: post.viewCount,
+      },
+
+      // User info
+      author: post.user,
+
+      // Media
+      media: post.media,
+
+      // Current user interactions
+      ...(userId && {
+        isLiked: post.likes.length > 0,
+        isReposted: post.reposts.length > 0,
+        isBookmarked: post.bookmarks.length > 0,
+      }),
+
+      // Parent post (if reply or quote)
+      parentPost: post.parentPost,
+    }));
+
+    return {
+      posts: formattedPosts,
+      pagination: {
+        hasMore,
+        nextCursor: hasMore
+          ? String(postsToReturn[postsToReturn.length - 1].id)
+          : null,
+      },
+    };
+  }
+
+  async getUserPosts(
+    username: string,
+    cursor?: string,
+    filter: string = 'posts',
+    limit: number = 20,
+  ) {
+    // cap limit
+    const take = Math.min(Math.max(limit, 1), 100); // 1..100
+
+    const user = await this.prisma.user.findUnique({
+      where: { username },
+      select: { id: true },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    // Build where clause
+    let whereClause: any = {
+      isDeleted: false,
+      userId: user.id,
+    };
+
+    if (filter === 'posts') {
+      whereClause.parentPostId = null;
+    } else if (filter === 'replies') {
+      whereClause.parentPostId = { not: null };
+    } else if (filter === 'media') {
+      whereClause.media = { some: {} };
+    }
+
+    const prismaCursor = cursor ? { id: cursor } : undefined;
+
+    const posts = await this.prisma.post.findMany({
+      take: take + 1,
+      cursor: prismaCursor,
+      skip: cursor ? 1 : 0,
+      where: whereClause,
+      orderBy: { id: 'desc' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+          },
+        },
+        media: true,
+      },
+    });
+
+    const hasMore = posts.length > take;
+    const postsToReturn = hasMore ? posts.slice(0, -1) : posts;
+
+    return {
+      posts: postsToReturn,
+      pagination: {
+        hasMore,
+        nextCursor: hasMore
+          ? String(postsToReturn[postsToReturn.length - 1].id)
+          : null,
+      },
+    };
+  }
+
   // Get post by ID
   async findOne(postId: string) {
     const post = await this.prisma.post.findUnique({

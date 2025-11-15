@@ -1,10 +1,12 @@
 import {
   Injectable,
-  BadRequestException,
   UnauthorizedException,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
+import { addMinutes } from 'date-fns';
+import { randomBytes } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { RegisterDto } from './dto/register.dto';
@@ -15,6 +17,13 @@ import { HashUtil } from '../../common/utils/hash.util';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SUCCESS_MESSAGES } from 'src/common/constants/success-message';
 import { ERROR_MESSAGES } from 'src/common/constants/error-message';
+import { MailService } from 'src/mail/mail.service';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { PasswordResetToken } from '@prisma/client';
+import { RealTimeGateWay } from 'src/realtime/realtime.gateway';
+
+const RESET_TTL_MINUTES = 30;
+const RESET_TOKEN_BYTES = 32; // 256-bit
 
 @Injectable()
 export class AuthService {
@@ -22,6 +31,8 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private mailService: MailService,
+    private realtimeGateway: RealTimeGateWay,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
@@ -89,7 +100,10 @@ export class AuthService {
     }
 
     // Verify password
-    const isPasswordValid = await HashUtil.compare(password, user.passwordHash);
+    const isPasswordValid = await HashUtil.compare(
+      password,
+      user.passwordHash ?? '',
+    );
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
@@ -197,7 +211,10 @@ export class AuthService {
       data: updateDto,
     });
 
-    return this.transformUser(user);
+    const profile = await this.transformUser(user);
+    this.realtimeGateway.emitProfileUpdate(userId, profile);
+
+    return profile;
   }
 
   async changePassword(
@@ -216,7 +233,7 @@ export class AuthService {
     // Verify current password
     const isPasswordValid = await HashUtil.compare(
       currentPassword,
-      user.passwordHash,
+      user.passwordHash ?? '',
     );
 
     if (!isPasswordValid) {
@@ -238,6 +255,90 @@ export class AuthService {
     });
 
     return { message: 'Password changed successfully. Please login again.' };
+  }
+
+  async requestPasswordReset(
+    email: string,
+    userAgent?: string,
+    ipAddress?: string,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      return;
+    }
+
+    const activeCount = await this.prisma.passwordResetToken.count({
+      where: { userId: user.id, usedAt: null, expiresAt: { gt: new Date() } },
+    });
+    if (activeCount >= 3) return;
+
+    const rawToken = randomBytes(RESET_TOKEN_BYTES).toString('base64url');
+    const tokenHash = await HashUtil.hash(rawToken);
+    const expiresAt = addMinutes(new Date(), RESET_TTL_MINUTES);
+
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+        createdIp: ipAddress,
+        createdUa: userAgent,
+      },
+    });
+
+    await this.mailService.sendResetEmail(
+      user.email,
+      rawToken,
+      user.username,
+      RESET_TTL_MINUTES,
+    );
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    let { newPassword, token } = resetPasswordDto;
+
+    token = (token ?? '').trim();
+    if (!token) throw new BadRequestException('Invalid or expired token');
+
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const candidates = await this.prisma.passwordResetToken.findMany({
+      where: {
+        usedAt: null,
+        expiresAt: { gt: now },
+        createdAt: { gt: windowStart },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    let match: PasswordResetToken | null = null;
+    for (const c of candidates) {
+      if (await HashUtil.compare(token, c.tokenHash)) {
+        match = c;
+        break;
+      }
+    }
+
+    if (!match) {
+      throw new BadRequestException('Invalid or expired token');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: match.userId },
+        data: { passwordHash: await HashUtil.hash(newPassword) },
+      }),
+      this.prisma.passwordResetToken.update({
+        where: { id: match.id },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.passwordResetToken.updateMany({
+        where: { userId: match.userId, usedAt: null, id: { not: match.id } },
+        data: { usedAt: new Date() },
+      }),
+    ]);
   }
 
   async checkUsername(username: string): Promise<{ available: boolean }> {
@@ -300,7 +401,10 @@ export class AuthService {
       return null;
     }
 
-    const isPasswordValid = await HashUtil.compare(password, user.passwordHash);
+    const isPasswordValid = await HashUtil.compare(
+      password,
+      user.passwordHash ?? '',
+    );
 
     if (!isPasswordValid) {
       return null;
@@ -321,13 +425,13 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get('JWT_SECRET'),
-      expiresIn: this.configService.get('JWT_EXPIRES_IN', '15m'),
+      secret: this.configService.get('config.jwt.seccret'),
+      expiresIn: this.configService.get('config.jwt.expiresIn', '15m'),
     });
 
     const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.get('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d'),
+      secret: this.configService.get('config.jwt.refreshSecret'),
+      expiresIn: this.configService.get('config.jwt.refreshExpiresIn', '7d'),
     });
 
     // Calculate expiry date
@@ -348,6 +452,67 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
+  async googleLogin(googleUser: any, ipAddress: string, userAgent: string) {
+    let user = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email: googleUser.email }],
+      },
+    });
+
+    if (!user) {
+      const baseUsername = googleUser.email.split('@')[0];
+      let username = baseUsername;
+      let counter = 1;
+
+      while (await this.prisma.user.findUnique({ where: { username } })) {
+        username = `${baseUsername}${counter}`;
+        counter++;
+      }
+
+      user = await this.prisma.user.create({
+        data: {
+          email: googleUser.email,
+          username: username,
+          fullName: `${googleUser.firstName} ${googleUser.lastName}`.trim(),
+          displayName: `${googleUser.firstName} ${googleUser.lastName}`.trim(),
+          googleId: googleUser.googleId,
+          avatarUrl: googleUser.picture,
+          verified: true,
+        },
+      });
+    } else {
+      if (!user.googleId) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            googleId: googleUser.googleId,
+            avatarUrl: user.avatarUrl || googleUser.picture,
+            verified: true,
+          },
+        });
+      }
+    }
+
+    const tokens = await this.generateTokens(
+      user.id,
+      user.email,
+      ipAddress,
+      userAgent,
+    );
+
+    return {
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        avatarUrl: user.avatarUrl,
+      },
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
+  }
+
   private transformUser(user: any) {
     return {
       id: user.id,
@@ -361,6 +526,9 @@ export class AuthService {
       location: user.location,
       verified: user.verified,
       isPrivate: user.isPrivate,
+      link: user.link,
+      linkTitle: user.linkTitle,
+      interests: user.interests,
       followersCount: user.followersCount,
       followingCount: user.followingCount,
       postsCount: user.postsCount,

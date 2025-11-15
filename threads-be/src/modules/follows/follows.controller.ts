@@ -1,34 +1,27 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Body, Delete, Get, Param } from '@nestjs/common';
 import { FollowsService } from './follows.service';
-import { CreateFollowDto } from './dto/create-follow.dto';
-import { UpdateFollowDto } from './dto/update-follow.dto';
-
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import { FollowDto, UnFollowDto } from './dto/follow.dto';
 @Controller('follows')
 export class FollowsController {
   constructor(private readonly followsService: FollowsService) {}
 
+  @Get('get-following')
+  async getFollowingList(@CurrentUser('id') followerId: string) {
+    return this.followsService.getFollowingList(followerId);
+  }
+
+  @Get('get-follower')
+  async getFollowerList(@CurrentUser('id') followerId: string) {
+    return this.followsService.getFollowerList(followerId);
+  }
+
+  @Post(':followingId/follow')
   @Post()
-  create(@Body() createFollowDto: CreateFollowDto) {
-    return this.followsService.create(createFollowDto);
-  }
-
-  @Get()
-  findAll() {
-    return this.followsService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.followsService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateFollowDto: UpdateFollowDto) {
-    return this.followsService.update(+id, updateFollowDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.followsService.remove(+id);
+  async toggleFollow(
+    @Param('followingId') followingId: string,
+    @CurrentUser('id') followerId: string,
+  ) {
+    return this.followsService.toggleFollow(followerId, followingId);
   }
 }

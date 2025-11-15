@@ -6,12 +6,18 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { RefreshJwtStrategy } from './strategies/jwt-refresh.strategy';
+import { MailModule } from 'src/mail/mail.module';
+import { RealTimeGateWay } from 'src/realtime/realtime.gateway';
+import { PrismaModule } from 'src/prisma/prisma.module';
+import { RealtimeModule } from 'src/realtime/realtime.module';
+import { GoogleStrategy } from './strategies/google.strategy';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    MailModule,
+    PrismaModule,
+    RealtimeModule,
     JwtModule.registerAsync({
-      imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
         const secret = configService.get('config.jwt.secret');
         return {
@@ -25,6 +31,6 @@ import { RefreshJwtStrategy } from './strategies/jwt-refresh.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PrismaService, JwtStrategy, RefreshJwtStrategy],
+  providers: [AuthService, JwtStrategy, RefreshJwtStrategy, GoogleStrategy],
 })
 export class AuthModule {}

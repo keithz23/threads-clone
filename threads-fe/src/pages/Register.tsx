@@ -41,8 +41,8 @@ export default function Register() {
   };
 
   const loginWithGoogle = () => {
-    const base = import.meta.env.VITE_API_URL || "http://localhost:3000";
-    window.location.href = `${base}/auth/google`;
+    const base = import.meta.env.VITE_CALLBACK_URL || "";
+    window.location.href = `${base}?redirect=${encodeURIComponent(redirect)}`;
   };
 
   return (

@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
-import { BullModule } from '@nestjs/bull';
+import { BullModule } from '@nestjs/bullmq';
 import appConfig from './config/app.config';
 import { validationSchema } from './config/validation.schema';
 // Common
@@ -24,6 +24,8 @@ import { SearchModule } from './modules/search/search.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { CacheModule } from './modules/cache/cache.module';
 import { TasksModule } from './tasks/tasks.module';
+import { SuggestionsModule } from './modules/suggestions/suggestions.module';
+import { HashtagsModule } from './modules/hashtags/hashtags.module';
 
 // Guards
 import { APP_GUARD } from '@nestjs/core';
@@ -32,6 +34,12 @@ import { CustomThrottlerGuard } from './common/guards/throttle.guard';
 import { FollowsModule } from './modules/follows/follows.module';
 import { RepostsModule } from './modules/reposts/reposts.module';
 import { BlocksModule } from './modules/blocks/blocks.module';
+import { MailModule } from './mail/mail.module';
+import { ConversationsModule } from './modules/conversations/conversations.module';
+import { RealtimeModule } from './realtime/realtime.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { SocketModule } from './socket/socket.module';
+import { UploadModule } from './uploads/upload.module';
 
 @Module({
   imports: [
@@ -46,17 +54,35 @@ import { BlocksModule } from './modules/blocks/blocks.module';
         abortEarly: true,
       },
     }),
+    MailModule,
 
     // Redis Cache
     CacheModule,
 
     // Bull Queue (for background jobs)
-    BullModule.forRoot({
-      redis: {
-        host: process.env.REDIS_HOST,
-        port: parseInt(process.env.REDIS_PORT || ''),
-        password: process.env.REDIS_PASSWORD,
-      },
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('config.redis.host') || 'localhost',
+          port: Number(configService.get('config.redis.port') || 6379),
+          password: configService.get<string>('config.redis.password'),
+        },
+        defaultJobOptions: {
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 2000,
+          },
+          removeOnComplete: {
+            age: 3600, // 1 hour
+            count: 1000,
+          },
+          removeOnFail: {
+            age: 86400, // 24 hours
+          },
+        },
+      }),
     }),
 
     // Rate limiting
@@ -90,7 +116,14 @@ import { BlocksModule } from './modules/blocks/blocks.module';
     TasksModule,
     FollowsModule,
     RepostsModule,
+    ConversationsModule,
     BlocksModule,
+    EventEmitterModule.forRoot(),
+    RealtimeModule,
+    SocketModule,
+    SuggestionsModule,
+    UploadModule,
+    HashtagsModule
   ],
   providers: [
     // Global guards

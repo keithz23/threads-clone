@@ -14,6 +14,7 @@ import {
   Res,
   Req,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -26,19 +27,26 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { CheckUsernameDto } from './dto/check-username.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Request, Response } from 'express';
+import { MailService } from 'src/mail/mail.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { GoogleOAuthGuard } from 'src/common/guards/google-oauth.guard';
+import { ConfigService } from '@nestjs/config';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly mailService: MailService,
+    private readonly configService: ConfigService,
+  ) {}
 
   // ============= PUBLIC ROUTES =============
   @Public()
@@ -106,10 +114,10 @@ export class AuthController {
   })
   @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
   async refresh(
-    @Body() refreshTokenDto: RefreshTokenDto,
-    @Res() response: Response,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
   ) {
-    const refreshToken = response.cookie['refreshToken'];
+    const refreshToken = request.cookies?.refreshToken;
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token not found');
     }
@@ -197,7 +205,7 @@ export class AuthController {
     }
 
     // Clear cookie from client
-    response.clearCookie('acccessToken', { path: '/' });
+    response.clearCookie('accessToken', { path: '/' });
     response.clearCookie('refreshToken', { path: '/api/v1/auth' });
 
     return { message: 'Logged out successfully' };
@@ -260,6 +268,31 @@ export class AuthController {
     );
   }
 
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(200)
+  async forgot(
+    @Body() body: ForgotPasswordDto,
+    @Ip() ipAddress: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
+    await this.authService.requestPasswordReset(
+      body.email,
+      userAgent,
+      ipAddress,
+    );
+
+    return { message: 'If the email exists, a reset link has been sent.' };
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(200)
+  async reset(@Body() resetPasswordDto: ResetPasswordDto) {
+    await this.authService.resetPassword(resetPasswordDto);
+    return { message: 'Password has been updated successfully.' };
+  }
+
   @Get('sessions')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all active sessions for current user' })
@@ -293,5 +326,53 @@ export class AuthController {
     @Param('sessionId') sessionId: string,
   ): Promise<{ message: string }> {
     return this.authService.revokeSession(userId, sessionId);
+  }
+
+  @Public()
+  @Get('google')
+  @UseGuards(GoogleOAuthGuard)
+  @ApiOperation({ summary: 'Initiate Google OAuth login' })
+  @ApiResponse({ status: 302, description: 'Redirects to Google login page' })
+  async googleAuth() {}
+
+  @Public()
+  @Get('google/callback')
+  @UseGuards(GoogleOAuthGuard)
+  @ApiOperation({ summary: 'Google OAuth callback' })
+  @ApiResponse({ status: 200, description: 'Login successful' })
+  async googleAuthRedirect(
+    @Req() req: Request,
+    @Ip() ipAddress: string,
+    @Headers('user-agent') userAgent: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const googleUser = req.user;
+
+    const result = await this.authService.googleLogin(
+      googleUser,
+      ipAddress,
+      userAgent,
+    );
+
+    response.cookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 15 * 60 * 1000,
+      path: '/',
+    });
+
+    response.cookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/v1/auth',
+    });
+
+    const frontendUrl =
+      this.configService.get<string>('config.client.url') ||
+      'http://localhost:3000';
+    return response.redirect(`${frontendUrl}/auth/google/success`);
   }
 }

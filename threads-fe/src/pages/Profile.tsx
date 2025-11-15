@@ -23,6 +23,7 @@ import {
   TAB_TO_COMPONENT,
   TABS,
   type TabKey,
+  type TabProps,
 } from "@/constants/item/profileMenu";
 import { useFollow } from "@/hooks/useFollow";
 import {
@@ -36,6 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useUserPosts } from "@/hooks/useNewsfeed";
 
 function normalizeUrl(url?: string) {
   if (!url) return "";
@@ -58,20 +60,22 @@ function pickToken(userObj: any): string | undefined {
 }
 
 export default function Profile() {
+  const { user, update } = useAuth();
   const [open, setOpen] = useState(false);
   const [showUnfollowDialog, setShowUnfollowDialog] = useState(false);
-
-  const { user, update } = useAuth();
+  const { toggleFollow } = useFollow();
   const [isFollowing, setIsFollowing] = useState(false);
+  const { handle } = useParams();
+
   const me = user?.data;
   const token = useMemo(() => pickToken(user), [user]);
   const profileId = me?.id as string | undefined;
-  const { toggleFollow } = useFollow();
-
-  const { handle } = useParams();
-  const targetUsername = handle ? handle.replace(/^@/, "") : undefined;
-
   useProfileRealtime(me, profileId, token);
+
+  const targetUsername = useMemo(() => {
+    if (!handle) return me?.username; // Own profile
+    return handle.replace(/^@/, "");
+  }, [handle, me?.username]);
 
   const { profileData } = useUserProfile(targetUsername);
 
@@ -108,7 +112,7 @@ export default function Profile() {
     return {
       id: d.id,
       displayName: (d.displayName ?? "").trim(),
-      username: (d.username ?? "").trim(),
+      username: (d.username ?? "").trim() || targetUsername || "",
       bio: (d.bio ?? "").trim(),
       interests: interestsClean,
       link: normalizeUrl(d.link),
@@ -123,7 +127,7 @@ export default function Profile() {
           ? d.followersCount
           : 0,
     };
-  }, [viewingUser]);
+  }, [viewingUser, targetUsername]);
 
   useEffect(() => {
     if (
@@ -146,7 +150,7 @@ export default function Profile() {
     const fromLs = (localStorage.getItem("profile_active_tab") || "") as TabKey;
     if (fromLs && TABS.some((t) => t.name === fromLs)) return fromLs;
 
-    return "threads";
+    return "posts";
   }, []);
 
   const handleToggleFollow = async (followingId: string) => {
@@ -165,6 +169,36 @@ export default function Profile() {
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
 
+  const {
+    posts,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+    error,
+  } = useUserPosts(
+    targetUsername || "",
+    activeTab as "posts" | "replies" | "media",
+    20
+  );
+
+  const ActiveTab = TAB_TO_COMPONENT[activeTab];
+
+  const tabProps: TabProps = {
+    profileId: profile.id,
+    isOwnProfile,
+    username: targetUsername || profile.username,
+    tabKeys: activeTab,
+    posts: posts,
+    hasNextPage: hasNextPage,
+    isFetchingNextPage: isFetchingNextPage,
+    fetchNextPage: fetchNextPage,
+    isError: isError,
+    isLoading: isLoading,
+    error: error,
+  };
+
   useEffect(() => {
     localStorage.setItem("profile_active_tab", activeTab);
     const url = new URL(window.location.href);
@@ -178,6 +212,14 @@ export default function Profile() {
     () => [...profile.interests],
     [profile.interests]
   );
+
+  if (!targetUsername) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p className="text-gray-500">Loading profile...</p>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -485,13 +527,12 @@ export default function Profile() {
       <div className="p-4">
         {isOwnProfile && (
           <div className="flex items-center gap-3 rounded-xl border border-gray-200 p-3">
-            <img
-              src={profile.avatarUrl}
-              alt="Your avatar"
-              width={28}
-              height={28}
-              className="rounded-full border border-gray-300 object-cover"
-            />
+            <Avatar className="h-10 w-10 rounded-full border border-gray-300 object-cover">
+              <AvatarImage src={profile.avatarUrl} alt={profile.username} />
+              <AvatarFallback className="text-lg">
+                {profile.username?.charAt(0) || "A"}
+              </AvatarFallback>
+            </Avatar>
             <input
               type="text"
               placeholder="What's new?"
@@ -509,14 +550,14 @@ export default function Profile() {
       </div>
 
       {/* Content */}
-      <div className="p-5 md:p-4">
+      <div className="p-2 md:p-4">
         <div
           id={`panel-${activeTab}`}
           role="tabpanel"
           aria-labelledby={`tab-${activeTab}`}
-          className="rounded-2xl border border-dashed border-gray-200 p-6 text-center text-gray-500"
+          className="rounded-2xl border border-dashed border-gray-200 p-1 text-center text-gray-500"
         >
-          {TAB_TO_COMPONENT[activeTab]}
+          <ActiveTab {...tabProps} />
         </div>
       </div>
 

@@ -328,6 +328,7 @@ export class PostsService {
     cursor?: string,
     filter: string = 'posts',
     limit: number = 20,
+    currentUserId?: string, // Thêm tham số để check interactions
   ) {
     // cap limit
     const take = Math.min(Math.max(limit, 1), 100); // 1..100
@@ -360,25 +361,93 @@ export class PostsService {
       cursor: prismaCursor,
       skip: cursor ? 1 : 0,
       where: whereClause,
-      orderBy: { id: 'desc' },
+      orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
       include: {
         user: {
           select: {
             id: true,
             username: true,
             displayName: true,
+            bio: true,
             avatarUrl: true,
+            followersCount: true,
+            following: true,
           },
         },
-        media: true,
+        media: {
+          orderBy: { createdAt: 'desc' },
+        },
+        ...(currentUserId && {
+          likes: {
+            where: { userId: currentUserId },
+            select: { id: true },
+          },
+          reposts: {
+            where: { userId: currentUserId },
+            select: { id: true },
+          },
+          bookmarks: {
+            where: { userId: currentUserId },
+            select: { id: true },
+          },
+        }),
+        parentPost: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                avatarUrl: true,
+                verified: true,
+                followersCount: true,
+                following: true,
+              },
+            },
+            media: true,
+          },
+        },
       },
     });
 
     const hasMore = posts.length > take;
     const postsToReturn = hasMore ? posts.slice(0, -1) : posts;
 
+    // Format response giống newsfeed
+    const formattedPosts = postsToReturn.map((post) => ({
+      id: post.id,
+      content: post.content,
+      createdAt: post.createdAt,
+      isPinned: post.isPinned,
+
+      // Counters
+      stats: {
+        replies: post.replyCount,
+        likes: post.likeCount,
+        reposts: post.repostCount,
+        bookmarks: post.bookmarkCount,
+        views: post.viewCount,
+      },
+
+      // User info
+      author: post.user,
+
+      // Media
+      media: post.media,
+
+      // Current user interactions
+      ...(currentUserId && {
+        isLiked: post.likes.length > 0,
+        isReposted: post.reposts.length > 0,
+        isBookmarked: post.bookmarks.length > 0,
+      }),
+
+      // Parent post (if reply or quote)
+      parentPost: post.parentPost,
+    }));
+
     return {
-      posts: postsToReturn,
+      posts: formattedPosts,
       pagination: {
         hasMore,
         nextCursor: hasMore

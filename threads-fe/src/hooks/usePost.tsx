@@ -1,7 +1,15 @@
 import { useToast } from "@/components/Toast";
-import type { CreatePostDto } from "@/interfaces/post/post.interface";
+import type {
+  CreatePostDto,
+  PostResponse,
+} from "@/interfaces/post/post.interface";
 import { PostService } from "@/services/post/post.service";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 function extractErrMsg(err: unknown): string {
   const anyErr = err as any;
@@ -74,5 +82,57 @@ export function usePost() {
     // Loading states
     isLoading: getPostsByUser.isLoading,
     isCreating: createPost.isPending,
+  };
+}
+
+export function useGetUserPosts(
+  username: string,
+  filter: "posts" | "replies" | "media" | "reposts",
+  limit = 20
+) {
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: ["user-posts", filter],
+    queryFn: async ({ pageParam }) => {
+      const response = await PostService.getUserPosts(
+        username,
+        filter,
+        limit,
+        pageParam
+      );
+      return response.data as PostResponse;
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => {
+      return lastPage.data.pagination.hasMore
+        ? lastPage.data.pagination.nextCursor
+        : undefined;
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 10, // 10 minutes
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true, // Refetch
+    enabled: !!username,
+  });
+
+  const posts = data?.pages.flatMap((page) => page.data.posts) ?? [];
+
+  return {
+    posts,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+    error,
+    refetch,
   };
 }

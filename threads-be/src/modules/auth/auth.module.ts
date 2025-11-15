@@ -10,6 +10,7 @@ import { MailModule } from 'src/mail/mail.module';
 import { RealTimeGateWay } from 'src/realtime/realtime.gateway';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { RealtimeModule } from 'src/realtime/realtime.module';
+import { GoogleStrategy } from './strategies/google.strategy';
 
 @Module({
   imports: [
@@ -30,6 +31,6 @@ import { RealtimeModule } from 'src/realtime/realtime.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, RefreshJwtStrategy],
+  providers: [AuthService, JwtStrategy, RefreshJwtStrategy, GoogleStrategy],
 })
 export class AuthModule {}

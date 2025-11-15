@@ -104,10 +104,13 @@ export default function Sidebar({ allHashtags }: SidebarProps) {
               </li>
 
               {/* More */}
-              <li className="rounded-xl p-3 cursor-pointer transition-all text-gray-400 hover:text-black hover:bg-gray-100">
+              <li>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button aria-label="More options">
+                    <button
+                      aria-label="More options"
+                      className="rounded-xl p-3 cursor-pointer transition-all text-gray-400 hover:text-black hover:bg-gray-100 active:scale-95"
+                    >
                       <TextAlignStart size={24} />
                     </button>
                   </PopoverTrigger>
@@ -120,64 +123,81 @@ export default function Sidebar({ allHashtags }: SidebarProps) {
                   >
                     <div role="menu" aria-label="More options" className="py-1">
                       {/* Appearance group */}
-                      <div className="px-1 py-1">
-                        {userMenu[0].preferences.map((item) => (
-                          <button
-                            key={item.id}
-                            role="menuitem"
-                            className="w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-sm hover:bg-gray-100 cursor-pointer"
-                            onClick={() => {}}
-                          >
-                            <span className="truncate">{item.displayName}</span>
-                            {item.chevron ? (
-                              <span className="shrink-0">{item.chevron}</span>
-                            ) : null}
-                          </button>
-                        ))}
-                      </div>
-
-                      <Separator className="my-1" />
+                      {userMenu[0]?.preferences && (
+                        <>
+                          <div className="px-1 py-1">
+                            {userMenu[0].preferences.map((item) => (
+                              <button
+                                key={item.id}
+                                role="menuitem"
+                                className="w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-sm hover:bg-gray-100 transition-colors"
+                                onClick={() => {}}
+                              >
+                                <span className="truncate">
+                                  {item.displayName}
+                                </span>
+                                {item.chevron && (
+                                  <span className="shrink-0 ml-2">
+                                    {item.chevron}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                          <Separator className="my-1" />
+                        </>
+                      )}
 
                       {/* Feed group */}
-                      <div className="px-1 py-1">
-                        {userMenu[0].content.map((item) => (
-                          <button
-                            key={item.id}
-                            role="menuitem"
-                            className="w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-sm hover:bg-gray-100 cursor-pointer"
-                            onClick={() => {}}
-                          >
-                            <span className="truncate">{item.displayName}</span>
-                            {item.chevron ? (
-                              <span className="shrink-0">{item.chevron}</span>
-                            ) : null}
-                          </button>
-                        ))}
-                      </div>
-
-                      <Separator className="my-1" />
+                      {userMenu[0]?.content && (
+                        <>
+                          <div className="px-1 py-1">
+                            {userMenu[0].content.map((item) => (
+                              <button
+                                key={item.id}
+                                role="menuitem"
+                                className="w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-sm hover:bg-gray-100 transition-colors"
+                                onClick={() => {}}
+                              >
+                                <span className="truncate">
+                                  {item.displayName}
+                                </span>
+                                {item.chevron && (
+                                  <span className="shrink-0 ml-2">
+                                    {item.chevron}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                          <Separator className="my-1" />
+                        </>
+                      )}
 
                       {/* Function group */}
-                      <div className="px-1 py-1">
-                        {userMenu[0].account.map((item) => {
-                          const isLogout = item.name === "logout";
-                          return (
-                            <button
-                              key={item.id}
-                              role="menuitem"
-                              className={
-                                "w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-sm hover:bg-gray-100 cursor-pointer " +
-                                (isLogout ? "text-red-600 hover:bg-red-50" : "")
-                              }
-                              onClick={isLogout ? handleLogout : () => {}}
-                            >
-                              <span className="truncate">
-                                {item.displayName}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
+                      {userMenu[0]?.account && (
+                        <div className="px-1 py-1">
+                          {userMenu[0].account.map((item) => {
+                            const isLogout = item.name === "logout";
+                            return (
+                              <button
+                                key={item.id}
+                                role="menuitem"
+                                className={`w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-sm transition-colors ${
+                                  isLogout
+                                    ? "text-red-600 hover:bg-red-50"
+                                    : "hover:bg-gray-100"
+                                }`}
+                                onClick={isLogout ? handleLogout : () => {}}
+                              >
+                                <span className="truncate">
+                                  {item.displayName}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </PopoverContent>
                 </Popover>

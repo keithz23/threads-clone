@@ -1,4 +1,4 @@
 export const Follow = {
-  FOLLOW: "/follows",
-  UNFOLLOW: "/follows/unfollow",
+  TOGGLE_FOLLOW: (followingId: string) =>
+    `/follows/${encodeURIComponent(followingId)}/follow`,
 };

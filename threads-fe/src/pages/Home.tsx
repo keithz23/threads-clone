@@ -30,7 +30,8 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useMemo, useState, useCallback } from "react";
+import { useFollow } from "@/hooks/useFollow";
 
 interface Post {
   id: string;
@@ -56,7 +57,7 @@ interface Post {
       id: string;
       followerId: string;
       followingId: string;
-    };
+    } | null;
   };
   media: Array<{
     id: string;
@@ -103,29 +104,85 @@ function PostSkeleton() {
 // POST CARD COMPONENT
 // ============================================
 function PostCard({ post }: { post: Post }) {
-  const initials = (name: string) =>
-    name.trim().slice(0, 2).toUpperCase() || "??";
-  const [isFollowing, setIsFollowing] = useState(false);
   const navigate = useNavigate();
   const likeMutation = useLikePost();
   const repostMutation = useRepost();
-  // const bookmarkMutation = useBookmark();
+  const { toggleFollow } = useFollow();
 
-  const handleLike = () => {
+  const initialFollowingState = useMemo(
+    () => !!post.author.following?.followingId,
+    [post.author.following?.followingId]
+  );
+
+  const [isFollowing, setIsFollowing] = useState(initialFollowingState);
+
+  // Memoize callbacks
+  const handleLike = useCallback(() => {
     likeMutation.mutate(post.id);
-  };
+  }, [likeMutation, post.id]);
 
-  const handleRepost = () => {
+  const handleRepost = useCallback(() => {
     repostMutation.mutate(post.id);
-  };
+  }, [repostMutation, post.id]);
 
-  const handleNavigate = () => {
+  const handleNavigate = useCallback(() => {
     navigate(`@${post.author.username}`);
-  };
+  }, [navigate, post.author.username]);
 
-  // const handleBookmark = () => {
-  //   bookmarkMutation.mutate(post.id);
-  // };
+  const handleToggleFollow = useCallback(
+    async (followingId: string) => {
+      try {
+        const res = await toggleFollow.mutateAsync({ followingId });
+
+        if (res?.data?.isFollowing !== undefined) {
+          setIsFollowing(res.data.isFollowing);
+        }
+      } catch (error) {
+        console.error("Toggle follow failed:", error);
+      }
+    },
+    [toggleFollow]
+  );
+
+  const initials = useMemo(
+    () => post.author.username.trim().slice(0, 2).toUpperCase() || "??",
+    [post.author.username]
+  );
+
+  const displayName = useMemo(
+    () => post.author.displayName || post.author.username || "Anonymous",
+    [post.author.displayName, post.author.username]
+  );
+
+  const formattedDate = useMemo(
+    () =>
+      formatDistanceToNow(new Date(post.createdAt), {
+        addSuffix: false,
+        locale: enUS,
+      }).replace(/^about\s/, ""),
+    [post.createdAt]
+  );
+
+  const fullDate = useMemo(
+    () =>
+      new Date(post.createdAt).toLocaleString("en-US", {
+        weekday: "short",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    [post.createdAt]
+  );
+
+  const avatarUrl = useMemo(
+    () =>
+      post.author.avatarUrl ||
+      `https://ui-avatars.com/api/?name=${post.author.username}&background=random`,
+    [post.author.avatarUrl, post.author.username]
+  );
+
   return (
     <div className="p-5 gap-x-3 border-b border-gray-200 w-full hover:bg-gray-50/50 transition-colors">
       {/* Pinned Badge */}
@@ -139,14 +196,8 @@ function PostCard({ post }: { post: Post }) {
         <div className="flex items-start gap-x-3 flex-1">
           {/* Avatar */}
           <Avatar className="h-10 w-10 md:h-12 md:w-12">
-            <AvatarImage
-              src={
-                post.author.avatarUrl ||
-                `https://ui-avatars.com/api/?name=${post.author.username}&background=random`
-              }
-              alt={post.author?.username || "User avatar"}
-            />
-            <AvatarFallback>{initials(post.author.username)}</AvatarFallback>
+            <AvatarImage src={avatarUrl} alt={post.author.username} />
+            <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
 
           <div className="flex-1 min-w-0">
@@ -158,9 +209,7 @@ function PostCard({ post }: { post: Post }) {
                     className="font-semibold text-sm hover:underline cursor-pointer"
                     onClick={handleNavigate}
                   >
-                    {post.author.displayName ||
-                      post.author?.username ||
-                      "Anonymous"}
+                    {displayName}
                   </span>
                 </HoverCardTrigger>
 
@@ -209,12 +258,18 @@ function PostCard({ post }: { post: Post }) {
                     </div>
 
                     <Button
-                      // onClick={handleFollowToggle}
-                      // variant={isFollowing ? "outline" : "default"}
+                      onClick={() => handleToggleFollow(post.author.id)}
+                      variant={isFollowing ? "outline" : "default"}
                       className="w-full cursor-pointer"
+                      disabled={toggleFollow.isPending}
                     >
-                      {/* {isFollowing ? "Following" : "Follow"} */}
-                      Follow
+                      {toggleFollow.isPending ? (
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : isFollowing ? (
+                        "Following"
+                      ) : (
+                        "Follow"
+                      )}
                     </Button>
                   </div>
                 </HoverCardContent>
@@ -223,7 +278,7 @@ function PostCard({ post }: { post: Post }) {
               {post.author.verified && <span className="text-blue-500">✓</span>}
 
               <span className="text-gray-500 text-sm">
-                @{post.author?.username}
+                @{post.author.username}
               </span>
 
               <span className="text-gray-400">·</span>
@@ -234,23 +289,11 @@ function PostCard({ post }: { post: Post }) {
                     className="text-gray-500 text-sm cursor-pointer hover:underline"
                     suppressHydrationWarning
                   >
-                    {formatDistanceToNow(new Date(post.createdAt), {
-                      addSuffix: false,
-                      locale: enUS,
-                    }).replace(/^about\s/, "")}
+                    {formattedDate}
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p suppressHydrationWarning>
-                    {new Date(post.createdAt).toLocaleString("en-US", {
-                      weekday: "short",
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
+                  <p suppressHydrationWarning>{fullDate}</p>
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -262,7 +305,7 @@ function PostCard({ post }: { post: Post }) {
               </p>
 
               {/* Media Carousel */}
-              {post.media && post.media.length > 0 && (
+              {post.media?.length > 0 && (
                 <div className="mt-3">
                   <Carousel opts={{ align: "start" }} className="w-full">
                     <CarouselContent>
@@ -368,8 +411,6 @@ function PostCard({ post }: { post: Post }) {
 
                 {/* Bookmark */}
                 <button
-                  // onClick={handleBookmark}
-                  // disabled={bookmarkMutation.isPending}
                   className={cn(
                     "cursor-pointer group rounded-full transition-all duration-200 p-2 active:scale-95",
                     post.isBookmarked

@@ -7,12 +7,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Search() {
   const navigate = useNavigate();
+  const { toggleFollow } = useFollow();
   const { suggestions, isLoading } = useSuggestion();
-  const { follow } = useFollow();
 
   const handleFollow = async (id: string) => {
     try {
-      await follow.mutateAsync({ followingId: id });
+      await toggleFollow.mutateAsync({ followingId: id });
     } catch (error) {
       console.error("Follow failed:", error);
     }
@@ -131,9 +131,9 @@ export default function Search() {
                       className="px-3 py-2 text-sm rounded-xl border border-black bg-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity cursor-pointer"
                       aria-label={`Follow ${sug.username}`}
                       onClick={() => handleFollow(sug.id)}
-                      disabled={follow.isPending}
+                      disabled={toggleFollow.isPending}
                     >
-                      {follow.isPending ? "..." : "Follow"}
+                      {toggleFollow.isPending ? "..." : "Follow"}
                     </button>
                   </div>
 

@@ -47,7 +47,7 @@ export function usePost() {
       toast.success("Post created successfully!");
     },
 
-    onError: (error: any, variables, context) => {
+    onError: (error: any, _variables, context) => {
       // Rollback optimistic update
       if (context?.previousPosts) {
         qc.setQueryData(["posts"], context.previousPosts);

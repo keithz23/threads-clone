@@ -20,8 +20,6 @@ import { ERROR_MESSAGES } from 'src/common/constants/error-message';
 import { MailService } from 'src/mail/mail.service';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { PasswordResetToken } from '@prisma/client';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ProfileUpdatedEvent } from 'src/profile-realtime/profile-updated.event';
 import { RealTimeGateWay } from 'src/realtime/realtime.gateway';
 
 const RESET_TTL_MINUTES = 30;
@@ -102,7 +100,10 @@ export class AuthService {
     }
 
     // Verify password
-    const isPasswordValid = await HashUtil.compare(password, user.passwordHash);
+    const isPasswordValid = await HashUtil.compare(
+      password,
+      user.passwordHash ?? '',
+    );
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
@@ -232,7 +233,7 @@ export class AuthService {
     // Verify current password
     const isPasswordValid = await HashUtil.compare(
       currentPassword,
-      user.passwordHash,
+      user.passwordHash ?? '',
     );
 
     if (!isPasswordValid) {
@@ -400,7 +401,10 @@ export class AuthService {
       return null;
     }
 
-    const isPasswordValid = await HashUtil.compare(password, user.passwordHash);
+    const isPasswordValid = await HashUtil.compare(
+      password,
+      user.passwordHash ?? '',
+    );
 
     if (!isPasswordValid) {
       return null;
@@ -446,6 +450,67 @@ export class AuthService {
     });
 
     return { accessToken, refreshToken };
+  }
+
+  async googleLogin(googleUser: any, ipAddress: string, userAgent: string) {
+    let user = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email: googleUser.email }],
+      },
+    });
+
+    if (!user) {
+      const baseUsername = googleUser.email.split('@')[0];
+      let username = baseUsername;
+      let counter = 1;
+
+      while (await this.prisma.user.findUnique({ where: { username } })) {
+        username = `${baseUsername}${counter}`;
+        counter++;
+      }
+
+      user = await this.prisma.user.create({
+        data: {
+          email: googleUser.email,
+          username: username,
+          fullName: `${googleUser.firstName} ${googleUser.lastName}`.trim(),
+          displayName: `${googleUser.firstName} ${googleUser.lastName}`.trim(),
+          googleId: googleUser.googleId,
+          avatarUrl: googleUser.picture,
+          verified: true,
+        },
+      });
+    } else {
+      if (!user.googleId) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            googleId: googleUser.googleId,
+            avatarUrl: user.avatarUrl || googleUser.picture,
+            verified: true,
+          },
+        });
+      }
+    }
+
+    const tokens = await this.generateTokens(
+      user.id,
+      user.email,
+      ipAddress,
+      userAgent,
+    );
+
+    return {
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        avatarUrl: user.avatarUrl,
+      },
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
   }
 
   private transformUser(user: any) {

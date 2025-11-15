@@ -25,7 +25,6 @@ import {
   type TabKey,
 } from "@/constants/item/profileMenu";
 import { useFollow } from "@/hooks/useFollow";
-import useNotificationsFromProvider from "@/hooks/useNotifications";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 function normalizeUrl(url?: string) {
   if (!url) return "";
@@ -66,7 +66,7 @@ export default function Profile() {
   const me = user?.data;
   const token = useMemo(() => pickToken(user), [user]);
   const profileId = me?.id as string | undefined;
-  const follow = useFollow();
+  const { toggleFollow } = useFollow();
 
   const { handle } = useParams();
   const targetUsername = handle ? handle.replace(/^@/, "") : undefined;
@@ -74,8 +74,6 @@ export default function Profile() {
   useProfileRealtime(me, profileId, token);
 
   const { profileData } = useUserProfile(targetUsername);
-
-  const notifications = useNotificationsFromProvider();
 
   const isOwnProfile = useMemo(() => {
     if (!me) return false;
@@ -151,31 +149,17 @@ export default function Profile() {
     return "threads";
   }, []);
 
-  const handleFollow = async (followingId: string) => {
+  const handleToggleFollow = async (followingId: string) => {
     try {
-      const res = await follow.follow.mutateAsync({ followingId });
+      const res = await toggleFollow.mutateAsync({ followingId });
+
       if (res?.data?.isFollowing !== undefined) {
         setIsFollowing(res.data.isFollowing);
       }
 
-      notifications.sendNotification({
-        targetUserId: followingId,
-        type: "FOLLOW",
-      });
-    } catch (error) {
-      console.error("Follow failed:", error);
-    }
-  };
-
-  const handleUnFollow = async (followingId: string) => {
-    try {
-      const res = await follow.unfollow.mutateAsync({ followingId });
-      if (res?.data?.isFollowing !== undefined) {
-        setIsFollowing(res.data.isFollowing);
-      }
       setShowUnfollowDialog(false);
     } catch (error) {
-      console.error("Unfollow failed:", error);
+      console.error("Toggle follow failed:", error);
     }
   };
 
@@ -217,13 +201,12 @@ export default function Profile() {
           {/* Avatar */}
           <div className="flex items-start gap-3">
             <div className="rounded-full ring-4 ring-white/90 shadow-md">
-              <img
-                src={profile.avatarUrl}
-                alt="Profile picture"
-                width={90}
-                height={90}
-                className="rounded-full border border-gray-300 object-cover"
-              />
+              <Avatar className="h-20 w-20">
+                <AvatarImage src={profile.avatarUrl} alt={profile.username} />
+                <AvatarFallback className="text-lg">
+                  {profile.username?.charAt(0) || "A"}
+                </AvatarFallback>
+              </Avatar>
             </div>
           </div>
         </div>
@@ -396,12 +379,12 @@ export default function Profile() {
                   if (isFollowing) {
                     setShowUnfollowDialog(true);
                   } else {
-                    handleFollow(profile.id);
+                    handleToggleFollow(profile.id);
                   }
                 }}
-                disabled={follow.follow.isPending || follow.unfollow.isPending}
+                disabled={toggleFollow.isPending}
               >
-                {follow.follow.isPending || follow.unfollow.isPending ? (
+                {toggleFollow.isPending ? (
                   <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 ) : isFollowing ? (
                   <>Following</>
@@ -427,11 +410,11 @@ export default function Profile() {
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
-                      onClick={() => handleUnFollow(profile.id)}
-                      disabled={follow.unfollow.isPending}
+                      onClick={() => handleToggleFollow(profile.id)}
+                      disabled={toggleFollow.isPending}
                       className="bg-black text-white hover:bg-gray-800"
                     >
-                      {follow.unfollow.isPending ? (
+                      {toggleFollow.isPending ? (
                         <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                       ) : (
                         "Unfollow"

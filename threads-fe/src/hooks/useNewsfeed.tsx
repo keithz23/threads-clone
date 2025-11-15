@@ -4,6 +4,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useToast } from "@/components/Toast";
 
 // ============================================
 // TYPES
@@ -33,7 +34,7 @@ interface Post {
       id: string;
       followerId: string;
       followingId: string;
-    };
+    } | null;
   };
   media: Array<{
     id: string;
@@ -91,9 +92,10 @@ export function useNewsfeed(
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 10, // 10 minutes
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true, // Refetch
   });
 
-  // Flatten all pages into single array
   const posts = data?.pages.flatMap((page) => page.data.posts) ?? [];
 
   return {
@@ -114,6 +116,7 @@ export function useNewsfeed(
 
 export function useLikePost() {
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   return useMutation({
     mutationFn: async (postId: string) => {
@@ -128,7 +131,6 @@ export function useLikePost() {
         queryKey: ["newsfeed"],
       });
 
-      // Optimistically update
       queryClient.setQueriesData<{
         pages: NewsfeedResponse[];
         pageParams: (string | undefined)[];
@@ -160,17 +162,26 @@ export function useLikePost() {
 
       return { previousData };
     },
-    onError: (_error, _context, context) => {
+    onError: (error, _postId, context) => {
       // Rollback on error
       if (context?.previousData) {
         context.previousData.forEach(([queryKey, data]) => {
           queryClient.setQueryData(queryKey, data);
         });
       }
+
+      // Show error toast
+      const errorMsg =
+        (error as any)?.response?.data?.message || "Failed to like post";
+      toast.error(errorMsg);
     },
     onSettled: () => {
-      // Refetch after mutation
-      queryClient.invalidateQueries({ queryKey: ["newsfeed"] });
+      setTimeout(() => {
+        queryClient.invalidateQueries({
+          queryKey: ["newsfeed"],
+          refetchType: "none",
+        });
+      }, 1000);
     },
   });
 }
@@ -181,6 +192,7 @@ export function useLikePost() {
 
 export function useRepost() {
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   return useMutation({
     mutationFn: async (postId: string) => {
@@ -225,29 +237,40 @@ export function useRepost() {
 
       return { previousData };
     },
-    onError: (_error, _variables, context) => {
+    onError: (error, _postId, context) => {
       if (context?.previousData) {
         context.previousData.forEach(([queryKey, data]) => {
           queryClient.setQueryData(queryKey, data);
         });
       }
+
+      const errorMsg =
+        (error as any)?.response?.data?.message || "Failed to repost";
+      toast.error(errorMsg);
     },
+
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["newsfeed"] });
+      setTimeout(() => {
+        queryClient.invalidateQueries({
+          queryKey: ["newsfeed"],
+          refetchType: "none",
+        });
+      }, 1000);
     },
   });
 }
 
-// // ============================================
-// // BOOKMARK MUTATION
-// // ============================================
+// ============================================
+// BOOKMARK MUTATION
+// ============================================
 
 // export function useBookmark() {
 //   const queryClient = useQueryClient();
+//   const toast = useToast();
 
 //   return useMutation({
 //     mutationFn: async (postId: string) => {
-//       return await postAPI.toggleBookmark(postId);
+//       return await PostService.toggleBookmark(postId);
 //     },
 //     onMutate: async (postId) => {
 //       await queryClient.cancelQueries({ queryKey: ["newsfeed"] });
@@ -288,15 +311,24 @@ export function useRepost() {
 
 //       return { previousData };
 //     },
-//     onError: (err, postId, context) => {
+//     onError: (error, _postId, context) => {
 //       if (context?.previousData) {
 //         context.previousData.forEach(([queryKey, data]) => {
 //           queryClient.setQueryData(queryKey, data);
 //         });
 //       }
+
+//       const errorMsg =
+//         (error as any)?.response?.data?.message || "Failed to bookmark";
+//       toast.error(errorMsg);
 //     },
 //     onSettled: () => {
-//       queryClient.invalidateQueries({ queryKey: ["newsfeed"] });
+//       setTimeout(() => {
+//         queryClient.invalidateQueries({
+//           queryKey: ["newsfeed"],
+//           refetchType: "none",
+//         });
+//       }, 1000);
 //     },
 //   });
 // }

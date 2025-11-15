@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Delete, Get } from '@nestjs/common';
+import { Controller, Post, Body, Delete, Get, Param } from '@nestjs/common';
 import { FollowsService } from './follows.service';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { FollowDto, UnFollowDto } from './dto/follow.dto';
@@ -16,19 +16,12 @@ export class FollowsController {
     return this.followsService.getFollowerList(followerId);
   }
 
+  @Post(':followingId/follow')
   @Post()
-  async follow(
+  async toggleFollow(
+    @Param('followingId') followingId: string,
     @CurrentUser('id') followerId: string,
-    @Body() followDto: FollowDto,
   ) {
-    return this.followsService.follow(followerId, followDto.followingId);
-  }
-
-  @Post('unfollow')
-  async unFollow(
-    @CurrentUser('id') followerId: string,
-    @Body() unFollowDto: UnFollowDto,
-  ) {
-    return this.followsService.unFollow(followerId, unFollowDto.followingId);
+    return this.followsService.toggleFollow(followerId, followingId);
   }
 }

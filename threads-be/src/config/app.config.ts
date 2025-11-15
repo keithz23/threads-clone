@@ -56,6 +56,12 @@ export default registerAs('config', () => ({
     password: process.env.MAIL_PASSWORD || '',
   },
 
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackUrl: process.env.GOOGLE_CALLBACK_URL,
+  },
+
   security: {
     bcryptSaltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS ?? '', 10) || 12,
   },

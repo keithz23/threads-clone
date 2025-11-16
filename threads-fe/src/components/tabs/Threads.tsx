@@ -16,13 +16,16 @@ import PostSkeleton from "../posts/PostSkeleton";
 import PostProfileCard from "../posts/PostProfileCard";
 import type { TabProps } from "@/constants/item/profileMenu";
 
-export default function Threads({
-  posts,
-  fetchNextPage,
-  hasNextPage,
-  isFetchingNextPage,
-  isLoading,
-}: TabProps) {
+export default function Threads(
+  {
+    posts,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+  }: TabProps,
+  variant: string
+) {
   const { ref } = useInView({
     onChange: (inView) => {
       if (inView && hasNextPage && !isFetchingNextPage) {

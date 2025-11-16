@@ -373,6 +373,6 @@ export class AuthController {
     const frontendUrl =
       this.configService.get<string>('config.client.url') ||
       'http://localhost:3000';
-    return response.redirect(`${frontendUrl}/auth/google/success`);
+    return response.redirect(frontendUrl);
   }
 }

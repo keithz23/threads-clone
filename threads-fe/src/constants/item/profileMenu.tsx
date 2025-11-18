@@ -12,7 +12,6 @@ import {
   UserRoundX,
   UserX,
 } from "lucide-react";
-import type { JSX } from "react";
 
 export type TabKey = "posts" | "replies" | "media" | "reposts";
 

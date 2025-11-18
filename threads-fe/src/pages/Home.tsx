@@ -3,6 +3,15 @@ import type { Post } from "@/interfaces/post/post.interface";
 import PostSkeleton from "@/components/posts/PostSkeleton";
 import PostCard from "@/components/posts/PostCard";
 import { useNewsfeed } from "@/hooks/useNewsfeed";
+import {
+  Bookmark,
+  EyeOff,
+  Link,
+  MessageSquareWarning,
+  UserMinus,
+  UserRoundX,
+  UserX,
+} from "lucide-react";
 
 export default function Home() {
   const {
@@ -23,6 +32,39 @@ export default function Home() {
     },
     threshold: 0.5,
   });
+
+  const groups = [
+    {
+      id: "primary",
+      items: [
+        { id: "save", label: "Save", icon: <Bookmark /> },
+        { id: "not_interested", label: "Not interested", icon: <EyeOff /> },
+      ],
+    },
+    {
+      id: "secondary",
+      items: [
+        { id: "mute", label: "Mute", icon: <UserMinus /> },
+        { id: "restrict", label: "Restrict", icon: <UserX /> },
+        {
+          id: "block",
+          label: "Block",
+          icon: <UserRoundX className="text-red-500" />,
+          dangerous: true,
+        },
+        {
+          id: "report",
+          label: "Report",
+          icon: <MessageSquareWarning className="text-red-500" />,
+          dangerous: true,
+        },
+      ],
+    },
+    {
+      id: "third",
+      items: [{ id: "copy", label: "Copy link", icon: <Link /> }],
+    },
+  ];
 
   // Loading state
   if (isLoading) {
@@ -77,7 +119,7 @@ export default function Home() {
     <div className="w-full md:w-1/2 flex-1 md:border border-gray-300 md:pt-0 pt-[calc(5rem+env(safe-area-inset-top))] rounded-none md:rounded-3xl mx-auto h-full overflow-y-auto custom-scroll">
       {/* Posts */}
       {posts.map((post: Post) => (
-        <PostCard key={post.id} post={post} />
+        <PostCard groups={groups} key={post.id} post={post} />
       ))}
 
       {/* Infinite Scroll Trigger */}

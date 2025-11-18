@@ -2,7 +2,7 @@ import { useFollow } from "@/hooks/useFollow";
 import { useLikePost, useRepost } from "@/hooks/useNewsfeed";
 import type { Post } from "@/interfaces/post/post.interface";
 import { formatDistanceToNow } from "date-fns";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import {
@@ -13,18 +13,19 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { Carousel, CarouselContent, CarouselItem } from "../ui/carousel";
 import { cn } from "@/lib/utils";
-import {
-  Bookmark,
-  Ellipsis,
-  Heart,
-  MessageCircle,
-  Repeat,
-  Send,
-} from "lucide-react";
+import { Bookmark, Heart, MessageCircle, Repeat, Send } from "lucide-react";
 import { Button } from "../ui/button";
 import { enUS } from "date-fns/locale";
+import type { Group } from "@/interfaces/profile/profile.interface";
+import PostDropdown from "./PostDropdown";
+import ReadMore from "../Readmore";
 
-export default function PostCard({ post }: { post: Post }) {
+interface PostCardProps {
+  post: Post;
+  groups: Group[];
+}
+
+export default function PostCard({ post, groups }: PostCardProps) {
   const navigate = useNavigate();
   const likeMutation = useLikePost();
   const repostMutation = useRepost();
@@ -36,7 +37,20 @@ export default function PostCard({ post }: { post: Post }) {
     [post.author.following]
   );
 
-  const [isFollowing, setIsFollowing] = useState(initialFollowingState);
+  const [isFollowing, setIsFollowing] = useState<boolean>(
+    initialFollowingState
+  );
+  const [followersCount, setFollowersCount] = useState<number>(
+    post.author.followersCount || 0
+  );
+
+  useEffect(() => {
+    setIsFollowing(initialFollowingState);
+  }, [initialFollowingState]);
+
+  useEffect(() => {
+    setFollowersCount(post.author.followersCount || 0);
+  }, [post.author.followersCount]);
 
   // Memoize callbacks
   const handleLike = useCallback(() => {
@@ -53,17 +67,34 @@ export default function PostCard({ post }: { post: Post }) {
 
   const handleToggleFollow = useCallback(
     async (followingId: string) => {
+      setIsFollowing((prev) => !prev);
+      setFollowersCount((prev) =>
+        isFollowing ? Math.max(0, prev - 1) : prev + 1
+      );
+
       try {
         const res = await toggleFollow.mutateAsync({ followingId });
 
-        if (res?.data?.isFollowing !== undefined) {
-          setIsFollowing(res.data.isFollowing);
+        if (res?.isFollowing !== undefined) {
+          setIsFollowing(res.isFollowing);
+          if (typeof res.followersCount === "number") {
+            setFollowersCount(res.followersCount);
+          } else {
+            setFollowersCount((prev) =>
+              res.isFollowing ? Math.max(0, prev) : Math.max(0, prev)
+            );
+          }
+        } else {
         }
       } catch (error) {
         console.error("Toggle follow failed:", error);
+        setIsFollowing((prev) => !prev);
+        setFollowersCount((prev) =>
+          isFollowing ? prev + 1 : Math.max(0, prev - 1)
+        );
       }
     },
-    [toggleFollow]
+    [toggleFollow, isFollowing]
   );
 
   const initials = useMemo(
@@ -174,7 +205,7 @@ export default function PostCard({ post }: { post: Post }) {
                     <div className="flex gap-3 text-sm">
                       <div>
                         <span className="font-semibold">
-                          {post.author.followersCount.toLocaleString()}
+                          {followersCount.toLocaleString()}
                         </span>
                         <span className="text-muted-foreground ml-1">
                           followers
@@ -225,9 +256,7 @@ export default function PostCard({ post }: { post: Post }) {
 
             {/* Content */}
             <div className="mt-2 space-y-3">
-              <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                {post.content}
-              </p>
+              <ReadMore lines={3}>{post.content}</ReadMore>
 
               {/* Media Carousel */}
               {post.media?.length > 0 && (
@@ -367,12 +396,7 @@ export default function PostCard({ post }: { post: Post }) {
         </div>
 
         {/* More Options */}
-        <button className="cursor-pointer group rounded-full transition-all duration-200 p-2 hover:bg-gray-100 active:scale-95 flex-shrink-0">
-          <Ellipsis
-            size={18}
-            className="text-gray-500 group-hover:text-gray-900 transition-colors"
-          />
-        </button>
+        <PostDropdown groups={groups} />
       </div>
     </div>
   );

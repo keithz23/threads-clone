@@ -2,13 +2,9 @@ import type { Post } from "@/interfaces/post/post.interface";
 import {
   Bookmark,
   ChevronRight,
-  Heart,
   HeartOff,
   Link,
-  MessageCircle,
   Pin,
-  Repeat,
-  Send,
   Trash,
 } from "lucide-react";
 import { useInView } from "react-intersection-observer";
@@ -16,16 +12,13 @@ import PostSkeleton from "../posts/PostSkeleton";
 import PostProfileCard from "../posts/PostProfileCard";
 import type { TabProps } from "@/constants/item/profileMenu";
 
-export default function Threads(
-  {
-    posts,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading,
-  }: TabProps,
-  variant: string
-) {
+export default function Threads({
+  posts,
+  fetchNextPage,
+  hasNextPage,
+  isFetchingNextPage,
+  isLoading,
+}: TabProps) {
   const { ref } = useInView({
     onChange: (inView) => {
       if (inView && hasNextPage && !isFetchingNextPage) {
@@ -34,12 +27,6 @@ export default function Threads(
     },
     threshold: 0.5,
   });
-  const post_btn = [
-    { id: 1, name: "heart", icon: <Heart size={18} /> },
-    { id: 2, name: "message", icon: <MessageCircle size={18} /> },
-    { id: 3, name: "repeat", icon: <Repeat size={18} /> },
-    { id: 4, name: "send", icon: <Send size={18} /> },
-  ];
 
   const groups = [
     {
@@ -98,7 +85,7 @@ export default function Threads(
     <div className="w-full rounded-none md:rounded-3xl mx-auto h-full overflow-y-auto custom-scroll">
       {/* Posts */}
       {posts.map((post: Post) => (
-        <PostProfileCard key={post.id} post={post} />
+        <PostProfileCard key={post.id} post={post} groups={groups} />
       ))}
 
       {/* Infinite Scroll Trigger */}

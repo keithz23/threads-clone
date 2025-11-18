@@ -6,22 +6,25 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { Carousel, CarouselContent, CarouselItem } from "../ui/carousel";
 import { cn } from "@/lib/utils";
-import {
-  Bookmark,
-  Ellipsis,
-  Heart,
-  MessageCircle,
-  Repeat,
-  Send,
-} from "lucide-react";
+import { Bookmark, Heart, MessageCircle, Repeat, Send } from "lucide-react";
 import { enUS } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
+import type { Group } from "@/interfaces/profile/profile.interface";
+import PostDropdown from "./PostDropdown";
+import ReadMore from "../Readmore";
 
-export default function PostProfileCard({ post }: { post: Post }) {
+interface PostProfileCardProps {
+  post: Post;
+  groups: Group[];
+}
+
+export default function PostProfileCard({
+  post,
+  groups,
+}: PostProfileCardProps) {
   const navigate = useNavigate();
   const likeMutation = useLikePost();
   const repostMutation = useRepost();
-  //   const bookmarkMutation = useBookmark();
 
   // Memoize callbacks
   const handleLike = useCallback(
@@ -40,14 +43,6 @@ export default function PostProfileCard({ post }: { post: Post }) {
     [repostMutation, post.id]
   );
 
-  //   const handleBookmark = useCallback(
-  //     (e: React.MouseEvent) => {
-  //       e.stopPropagation();
-  //       bookmarkMutation.mutate(post.id);
-  //     },
-  //     [bookmarkMutation, post.id]
-  //   );
-
   const handleReply = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -63,17 +58,13 @@ export default function PostProfileCard({ post }: { post: Post }) {
 
       try {
         await navigator.clipboard.writeText(url);
-        // toast.success('Link copied to clipboard'); // Uncomment if using toast
+        // toast.success('Link copied to clipboard');
       } catch (err) {
         console.error("Failed to copy:", err);
       }
     },
     [post.id]
   );
-
-  const handlePostClick = useCallback(() => {
-    navigate(`/post/${post.id}`);
-  }, [navigate, post.id]);
 
   const handleProfileClick = useCallback(
     (e: React.MouseEvent) => {
@@ -123,14 +114,11 @@ export default function PostProfileCard({ post }: { post: Post }) {
   );
 
   return (
-    <div
-      className="gap-x-3 border-b border-gray-200 w-full hover:bg-gray-50/50 transition-colors cursor-pointer p-4"
-      onClick={handlePostClick}
-    >
+    <div className="gap-x-3 border-b border-gray-200 w-full hover:bg-gray-50/50 transition-colors cursor-pointer p-4">
       {/* Pinned Badge */}
       {post.isPinned && (
         <div className="flex items-center gap-2 text-gray-500 text-sm mb-2 ml-12">
-          📌 Pinned post
+          Pinned post
         </div>
       )}
 
@@ -187,9 +175,7 @@ export default function PostProfileCard({ post }: { post: Post }) {
 
             {/* Content */}
             <div className="mt-2 space-y-3">
-              <p className="text-sm leading-relaxed whitespace-pre-wrap break-words text-left">
-                {post.content}
-              </p>
+              <ReadMore lines={3}>{post.content}</ReadMore>
 
               {/* Media Carousel */}
               {post.media?.length > 0 && (
@@ -212,7 +198,6 @@ export default function PostProfileCard({ post }: { post: Post }) {
                               className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // TODO: Open media lightbox
                               }}
                             />
                           </div>
@@ -309,16 +294,12 @@ export default function PostProfileCard({ post }: { post: Post }) {
                 </button>
 
                 {/* Bookmark */}
-                {/* <button
-                  onClick={handleBookmark}
-                  disabled={bookmarkMutation.isPending}
+                <button
                   className={cn(
                     "cursor-pointer group rounded-full transition-all duration-200 p-2 active:scale-95",
                     post.isBookmarked
                       ? "bg-blue-50 hover:bg-blue-100"
-                      : "hover:bg-blue-50",
-                    bookmarkMutation.isPending &&
-                      "opacity-50 cursor-not-allowed"
+                      : "hover:bg-blue-50"
                   )}
                   aria-label={
                     post.isBookmarked ? "Remove bookmark" : "Bookmark"
@@ -333,7 +314,7 @@ export default function PostProfileCard({ post }: { post: Post }) {
                         : "text-gray-600 group-hover:text-blue-500"
                     )}
                   />
-                </button> */}
+                </button>
 
                 {/* Share */}
                 <button
@@ -352,19 +333,7 @@ export default function PostProfileCard({ post }: { post: Post }) {
         </div>
 
         {/* More Options */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            // TODO: Open post options menu (edit, delete, report, etc.)
-          }}
-          className="cursor-pointer group rounded-full transition-all duration-200 p-2 hover:bg-gray-100 active:scale-95 flex-shrink-0"
-          aria-label="More options"
-        >
-          <Ellipsis
-            size={18}
-            className="text-gray-500 group-hover:text-gray-900 transition-colors"
-          />
-        </button>
+        <PostDropdown groups={groups} />
       </div>
     </div>
   );

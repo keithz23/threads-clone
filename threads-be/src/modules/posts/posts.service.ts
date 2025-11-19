@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreatePostDto } from './dto/create-post.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { MediaType } from '@prisma/client';
@@ -171,6 +176,33 @@ export class PostsService {
     return fullPost;
   }
 
+  async softDelete(postId: string, userId: string) {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+      include: { media: true },
+    });
+
+    if (!post) throw new NotFoundException('Post not found');
+    if (post.userId !== userId)
+      throw new ForbiddenException(
+        'You are not authorized to delete this post',
+      );
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.post.update({
+        where: { id: postId },
+        data: { isDeleted: true },
+      });
+
+      if (post.parentPostId) {
+        await tx.post.update({
+          where: { id: post.parentPostId },
+          data: { replyCount: { decrement: 1 } },
+        });
+      }
+    });
+  }
+
   // Delete post with cleanup job
   async delete(postId: string, userId: string) {
     const post = await this.prisma.post.findUnique({
@@ -183,7 +215,9 @@ export class PostsService {
     }
 
     if (post.userId !== userId) {
-      throw new NotFoundException('Unauthorized');
+      throw new ForbiddenException(
+        'You are not authorized to delete this post',
+      );
     }
 
     // Delete from DB

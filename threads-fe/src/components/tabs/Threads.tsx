@@ -11,6 +11,9 @@ import { useInView } from "react-intersection-observer";
 import PostSkeleton from "../posts/PostSkeleton";
 import PostProfileCard from "../posts/PostProfileCard";
 import type { TabProps } from "@/constants/item/profileMenu";
+import type { Group } from "@/interfaces/profile/profile.interface";
+import { useDeletePost } from "@/hooks/usePostActions";
+import { useCallback } from "react";
 
 export default function Threads({
   posts,
@@ -19,6 +22,7 @@ export default function Threads({
   isFetchingNextPage,
   isLoading,
 }: TabProps) {
+  const { delete: deletePost } = useDeletePost();
   const { ref } = useInView({
     onChange: (inView) => {
       if (inView && hasNextPage && !isFetchingNextPage) {
@@ -28,7 +32,19 @@ export default function Threads({
     threshold: 0.5,
   });
 
-  const groups = [
+  const handleAction = useCallback(
+    async (postId: string, actionId: string) => {
+      switch (actionId) {
+        case "delete":
+          if (!confirm("Delete this post?")) return;
+          await deletePost(postId);
+          break;
+      }
+    },
+    [deletePost]
+  );
+
+  const groups: Group[] = [
     {
       id: "primary",
       items: [
@@ -85,7 +101,12 @@ export default function Threads({
     <div className="w-full rounded-none md:rounded-3xl mx-auto h-full overflow-y-auto custom-scroll">
       {/* Posts */}
       {posts.map((post: Post) => (
-        <PostProfileCard key={post.id} post={post} groups={groups} />
+        <PostProfileCard
+          key={post.id}
+          post={post}
+          groups={groups}
+          onAction={handleAction}
+        />
       ))}
 
       {/* Infinite Scroll Trigger */}

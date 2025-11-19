@@ -71,4 +71,8 @@ export const PostService = {
   toggleRepost: (postId: string) => {
     return instance.post(`${Post.TOGGLE_REPOST(postId)}`);
   },
+
+  deletePost: (postId: string) => {
+    return instance.delete(`${Post.DELETE_POST(postId)}`);
+  },
 };

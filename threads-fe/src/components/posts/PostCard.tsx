@@ -129,13 +129,6 @@ export default function PostCard({ post, groups }: PostCardProps) {
     [post.createdAt]
   );
 
-  const avatarUrl = useMemo(
-    () =>
-      post.author.avatarUrl ||
-      `https://ui-avatars.com/api/?name=${post.author.username}&background=random`,
-    [post.author.avatarUrl, post.author.username]
-  );
-
   return (
     <div className="p-5 gap-x-3 border-b border-gray-200 w-full hover:bg-gray-50/50 transition-colors">
       {/* Pinned Badge */}
@@ -149,7 +142,10 @@ export default function PostCard({ post, groups }: PostCardProps) {
         <div className="flex items-start gap-x-3 flex-1">
           {/* Avatar */}
           <Avatar className="h-10 w-10 md:h-12 md:w-12">
-            <AvatarImage src={avatarUrl} alt={post.author.username} />
+            <AvatarImage
+              src={post.author.avatarUrl}
+              alt={post.author.username}
+            />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
 

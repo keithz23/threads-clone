@@ -7,6 +7,7 @@ import {
   UseInterceptors,
   UploadedFiles,
   Param,
+  Delete,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { PostsService } from './posts.service';
@@ -93,5 +94,21 @@ export class PostsController {
       filter,
       parsedLimit,
     );
+  }
+
+  @Delete(':postId/soft-delete')
+  async softDelete(
+    @Param('postId') postId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.postsService.softDelete(postId, userId);
+  }
+
+  @Delete(':postId/delete')
+  async delete(
+    @Param('postId') postId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.postsService.delete(postId, userId);
   }
 }

@@ -1,7 +1,8 @@
+// PostProfileCard.tsx
+import React, { useCallback, useMemo } from "react";
 import { useLikePost, useRepost } from "@/hooks/useNewsfeed";
 import type { Post } from "@/interfaces/post/post.interface";
 import { formatDistanceToNow } from "date-fns";
-import { useCallback, useMemo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { Carousel, CarouselContent, CarouselItem } from "../ui/carousel";
@@ -16,11 +17,13 @@ import ReadMore from "../Readmore";
 interface PostProfileCardProps {
   post: Post;
   groups: Group[];
+  onAction?: (postId: string, actionId: string) => void;
 }
 
-export default function PostProfileCard({
+function PostProfileCardInner({
   post,
   groups,
+  onAction,
 }: PostProfileCardProps) {
   const navigate = useNavigate();
   const likeMutation = useLikePost();
@@ -75,7 +78,7 @@ export default function PostProfileCard({
   );
 
   const initials = useMemo(
-    () => post.author.username.trim().slice(0, 2).toUpperCase() || "??",
+    () => (post.author.username || "").trim().slice(0, 2).toUpperCase() || "??",
     [post.author.username]
   );
 
@@ -106,11 +109,13 @@ export default function PostProfileCard({
     [post.createdAt]
   );
 
-  const avatarUrl = useMemo(
-    () =>
-      post.author.avatarUrl ||
-      `https://ui-avatars.com/api/?name=${post.author.username}&background=random`,
-    [post.author.avatarUrl, post.author.username]
+  // Handler to forward dropdown actions to parent
+  const handleDropdownSelect = useCallback(
+    (itemId: string) => {
+      // stopPropagation is already attempted in PostDropdown, but keep defensive
+      onAction?.(post.id, itemId);
+    },
+    [onAction, post.id]
   );
 
   return (
@@ -129,7 +134,10 @@ export default function PostProfileCard({
             className="h-10 w-10 md:h-12 md:w-12 cursor-pointer flex-shrink-0"
             onClick={handleProfileClick}
           >
-            <AvatarImage src={avatarUrl} alt={post.author.username} />
+            <AvatarImage
+              src={post.author.avatarUrl}
+              alt={post.author.username}
+            />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
 
@@ -198,6 +206,7 @@ export default function PostProfileCard({
                               className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                // open viewer if you have one
                               }}
                             />
                           </div>
@@ -333,8 +342,25 @@ export default function PostProfileCard({
         </div>
 
         {/* More Options */}
-        <PostDropdown groups={groups} />
+        <div className="ml-3">
+          <PostDropdown
+            groups={groups}
+            onSelectItem={(itemId: string) => {
+              // defensive stopPropagation already handled in PostDropdown, but ensure it here too if needed
+              handleDropdownSelect(itemId);
+            }}
+          />
+        </div>
       </div>
     </div>
   );
 }
+
+// Export memoized component: compare references for shallow stability
+export default React.memo(
+  PostProfileCardInner,
+  (prev, next) =>
+    prev.post === next.post &&
+    prev.groups === next.groups &&
+    prev.onAction === next.onAction
+);

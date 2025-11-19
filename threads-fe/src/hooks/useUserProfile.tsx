@@ -4,7 +4,7 @@ import type { UserProfile } from "@/interfaces/user/user.interface";
 
 export function useUserProfile(username?: string) {
   const query = useQuery<UserProfile, Error>({
-    queryKey: ["user-profile", username],
+    queryKey: ["profile", username],
     queryFn: async () => {
       if (!username) throw new Error("Username is required");
       const res = await UserService.getProfile(username);
@@ -12,8 +12,10 @@ export function useUserProfile(username?: string) {
       return maybeData.data;
     },
     enabled: !!username,
-    staleTime: 2 * 60_000,
+    staleTime: 0,
     refetchOnWindowFocus: false,
+    gcTime: 5 * 60 * 1000, // Cache 5 phút (cacheTime renamed to gcTime in v5)
+    refetchOnMount: 'always', // ✅ Luôn refetch khi mount
   });
 
   return {

@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { RealTimeGateWay } from './realtime.gateway';
+import { RealTimeGateway } from './realtime.gateway';
 
 @Injectable()
 export class RealtimeService {
-  constructor(private readonly gw: RealTimeGateWay) {}
+  constructor(private readonly gw: RealTimeGateway) {}
   emitToUser(userId: string, event: string, data: any) {
     this.gw.server.to(`user:${userId}`).emit(event, data);
   }

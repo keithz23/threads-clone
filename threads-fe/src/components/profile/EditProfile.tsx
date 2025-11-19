@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   useForm,
   FormProvider,
@@ -24,7 +24,6 @@ import { useScreen } from "@/hooks/useScreen";
 import { useAuth } from "@/hooks/useAuth";
 import type { UpdateProfileDto } from "@/interfaces/auth/profile.interface";
 import { useProfileRealtime } from "@/hooks/useProfile";
-import { useEffect } from "react";
 import { useProfileStore } from "@/stores/useProfileStore";
 
 type Privacy = "private" | "public";
@@ -87,7 +86,6 @@ export default function EditProfile({
 
   const { handleSubmit, reset: resetForm } = methods;
 
-  // sync form when profile realtime changed
   useEffect(() => {
     if (!live) return;
     resetForm(
@@ -100,9 +98,47 @@ export default function EditProfile({
       },
       { keepDirty: false, keepTouched: false }
     );
-  }, [live]);
+  }, [live, resetForm]);
 
-  // Reset slide state
+  useEffect(() => {
+    if (!open) return;
+
+    const src = me ??
+      live ?? {
+        bio: bioProp,
+        interests: interestsProp,
+        link: linkProp,
+        linkTitle: linkTitleProp,
+        isPrivate: isPrivateProp,
+        displayName: nameProp,
+        username: handleProp,
+      };
+
+    resetForm(
+      {
+        bio: src.bio ?? "",
+        interests: Array.isArray(src.interests) ? src.interests : [],
+        link: src.link ?? "",
+        linkTitle: src.linkTitle ?? "",
+        isPrivate: !!src.isPrivate,
+      },
+      { keepDirty: false, keepTouched: false }
+    );
+  }, [
+    open,
+    me,
+    live,
+    bioProp,
+    interestsProp,
+    linkProp,
+    linkTitleProp,
+    isPrivateProp,
+    resetForm,
+    handleProp,
+    nameProp,
+  ]);
+
+  // Reset slide state when closing
   useEffect(() => {
     if (!open) {
       const t = setTimeout(() => {
@@ -135,8 +171,9 @@ export default function EditProfile({
     ? { duration: 0 }
     : ({ type: "spring", stiffness: 800, damping: 50, mass: 0.7 } as const);
 
-  const name = live?.username ?? nameProp;
-  const handle = live?.displayName ?? handleProp;
+  // NOTE: prefer auth.me > live > props to avoid race conditions when switching routes
+  const name = me?.displayName ?? live?.displayName ?? nameProp;
+  const handle = me?.username ?? live?.username ?? handleProp;
 
   const renderHeaderTitle = () => {
     if (screen === "main") return "";

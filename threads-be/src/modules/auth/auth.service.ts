@@ -20,7 +20,7 @@ import { ERROR_MESSAGES } from 'src/common/constants/error-message';
 import { MailService } from 'src/mail/mail.service';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { PasswordResetToken } from '@prisma/client';
-import { RealTimeGateWay } from 'src/realtime/realtime.gateway';
+import { RealTimeGateway } from 'src/realtime/realtime.gateway';
 
 const RESET_TTL_MINUTES = 30;
 const RESET_TOKEN_BYTES = 32; // 256-bit
@@ -32,7 +32,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private mailService: MailService,
-    private realtimeGateway: RealTimeGateWay,
+    private RealTimeGateway: RealTimeGateway,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
@@ -211,8 +211,8 @@ export class AuthService {
       data: updateDto,
     });
 
-    const profile = await this.transformUser(user);
-    this.realtimeGateway.emitProfileUpdate(userId, profile);
+    const profile = this.transformUser(user);
+    this.RealTimeGateway.emitProfileUpdate(userId, profile);
 
     return profile;
   }

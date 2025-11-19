@@ -12,6 +12,15 @@ interface SocketContextValue {
   notificationSocket: Socket | null;
   isConnected: boolean;
   onlineUsers: string[];
+  // Helper methods
+  joinRoom: (
+    namespace: "REALTIME" | "MESSAGES" | "NOTIFICATIONS",
+    room: string
+  ) => void;
+  leaveRoom: (
+    namespace: "REALTIME" | "MESSAGES" | "NOTIFICATIONS",
+    room: string
+  ) => void;
 }
 
 interface SocketProviderProps {
@@ -30,6 +39,8 @@ const SocketContext = createContext<SocketContextValue>({
   notificationSocket: null,
   isConnected: false,
   onlineUsers: [],
+  joinRoom: () => {},
+  leaveRoom: () => {},
 });
 
 export const useSocketContext = () => {
@@ -57,45 +68,93 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
   const [isConnected, setIsConnected] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
 
+  // Setup token provider
   useEffect(() => {
-    if (!userId) return;
-
-    if (!messageRef.current) {
-      messageRef.current = socketService.initMessageSocket(userId);
+    if (token) {
+      socketService.setTokenProvider(async () => token);
     }
+  }, [token]);
+
+  // Initialize sockets when userId available
+  useEffect(() => {
+    if (!userId) {
+      // Disconnect all
+      if (messageRef.current) {
+        messageRef.current.disconnect();
+        messageRef.current = null;
+      }
+      if (realtimeRef.current) {
+        realtimeRef.current.disconnect();
+        realtimeRef.current = null;
+      }
+      if (notificationRef.current) {
+        notificationRef.current.disconnect();
+        notificationRef.current = null;
+      }
+
+      setIsConnected(false);
+      setOnlineUsers([]);
+      return;
+    }
+
+    // Initialize message socket
+    if (!messageRef.current) {
+      messageRef.current = socketService.initMessageSocket(userId, token);
+    }
+
+    // Initialize realtime socket with profileId context
     if (!realtimeRef.current) {
       realtimeRef.current = socketService.initRealtimeSocket(userId, token, {
         profileId: profileId || "",
       });
     }
+
+    // Initialize notification socket
     if (!notificationRef.current) {
-      notificationRef.current = socketService.initNotificationSocket(userId);
+      notificationRef.current = socketService.initNotificationSocket(
+        userId,
+        token
+      );
     }
 
-    const msg = messageRef.current!;
-    const rtm = realtimeRef.current!;
-    const noti = notificationRef.current!;
-
-    // Connect sockets
-    msg.connect();
-    rtm.connect?.();
-    noti.connect?.();
+    const msg = messageRef.current;
+    const rtm = realtimeRef.current;
+    const noti = notificationRef.current;
 
     // Realtime socket handlers
     const onRealtimeConnect = () => {
       setIsConnected(true);
+
+      // Auto-join profile room if profileId exists
+      if (profileId && joinedProfileRef.current !== profileId) {
+        console.log(`🔗 Auto-joining profile room: profile:${profileId}`);
+        rtm.emit("room:join", {
+          profileId,
+          room: `profile:${profileId}`,
+        });
+        joinedProfileRef.current = profileId;
+      }
     };
+
     const onRealtimeDisconnect = () => {
       setIsConnected(false);
     };
-    const onRealtimeError = (err: any) => console.error(err?.message || err);
+
+    const onRealtimeError = (err: any) => {
+      console.error("Realtime socket error:", err?.message || err);
+    };
+
+    // Room join confirmation
+    const onRoomJoined = () => {};
 
     rtm.on("connect", onRealtimeConnect);
     rtm.on("disconnect", onRealtimeDisconnect);
     rtm.on("connect_error", onRealtimeError);
+    rtm.on("room:joined", onRoomJoined);
 
     // Message socket handlers
     const onMsgConnect = () => {};
+
     const onOnlineUsers = (users: string[]) => {
       setOnlineUsers(users);
     };
@@ -105,19 +164,21 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
 
     // Notification socket handlers
     const onNotiConnect = () => {};
-    const onNotiDisconnect = () => {
-      console.log("🔌 Notification socket disconnected");
-    };
+
+    const onNotiDisconnect = () => {};
 
     noti.on("connect", onNotiConnect);
     noti.on("disconnect", onNotiDisconnect);
 
     // Cleanup
     return () => {
+      console.log("🧹 Cleaning up socket listeners");
+
       // Remove listeners
       rtm.off("connect", onRealtimeConnect);
       rtm.off("disconnect", onRealtimeDisconnect);
       rtm.off("connect_error", onRealtimeError);
+      rtm.off("room:joined", onRoomJoined);
 
       msg.off("connect", onMsgConnect);
       msg.off(MESSAGE_EVENTS.ONLINE_USERS, onOnlineUsers);
@@ -125,42 +186,77 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
       noti.off("connect", onNotiConnect);
       noti.off("disconnect", onNotiDisconnect);
 
-      // Disconnect sockets
-      msg.disconnect();
-      rtm.disconnect();
-      noti.disconnect();
-
-      // Clear refs
-      messageRef.current = null;
-      realtimeRef.current = null;
-      notificationRef.current = null;
-      joinedProfileRef.current = null;
-    };
-  }, [userId, token]);
-
-  useEffect(() => {
-    const rtm = realtimeRef.current;
-    if (!rtm || !profileId) return;
-
-    if (joinedProfileRef.current !== profileId) {
-      // Leave old profile room
+      // Leave profile room if joined
       if (joinedProfileRef.current) {
-        rtm.emit("profile.leave", { id: joinedProfileRef.current });
-      }
-
-      // Join new profile room
-      rtm.emit("profile.join", { id: profileId });
-      joinedProfileRef.current = profileId;
-    }
-
-    return () => {
-      // Leave profile room on cleanup
-      if (joinedProfileRef.current) {
-        rtm.emit("profile.leave", { id: joinedProfileRef.current });
+        rtm.emit("room:leave", {
+          profileId: joinedProfileRef.current,
+          room: `profile:${joinedProfileRef.current}`,
+        });
         joinedProfileRef.current = null;
       }
     };
+  }, [userId, token, profileId]);
+
+  // Handle profileId changes
+  useEffect(() => {
+    const rtm = realtimeRef.current;
+    if (!rtm || !rtm.connected || !profileId) return;
+
+    if (joinedProfileRef.current === profileId) {
+      console.log(`Already in profile room: profile:${profileId}`);
+      return;
+    }
+
+    // Leave old profile room
+    if (joinedProfileRef.current) {
+      rtm.emit("room:leave", {
+        profileId: joinedProfileRef.current,
+        room: `profile:${joinedProfileRef.current}`,
+      });
+    }
+
+    // Join new profile room
+    rtm.emit("room:join", {
+      profileId,
+      room: `profile:${profileId}`,
+    });
+    joinedProfileRef.current = profileId;
   }, [profileId]);
+
+  // Helper methods
+  const joinRoom = (
+    namespace: "REALTIME" | "MESSAGES" | "NOTIFICATIONS",
+    room: string
+  ) => {
+    const socket =
+      namespace === "REALTIME"
+        ? realtimeRef.current
+        : namespace === "MESSAGES"
+        ? messageRef.current
+        : notificationRef.current;
+
+    if (socket?.connected) {
+      socket.emit("room:join", { room });
+    } else {
+      console.warn(`Cannot join room, ${namespace} socket not connected`);
+    }
+  };
+
+  const leaveRoom = (
+    namespace: "REALTIME" | "MESSAGES" | "NOTIFICATIONS",
+    room: string
+  ) => {
+    const socket =
+      namespace === "REALTIME"
+        ? realtimeRef.current
+        : namespace === "MESSAGES"
+        ? messageRef.current
+        : notificationRef.current;
+
+    if (socket?.connected) {
+      socket.emit("room:leave", { room });
+    }
+  };
 
   const contextValue: SocketContextValue = {
     messageSocket: messageRef.current,
@@ -168,6 +264,8 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
     notificationSocket: notificationRef.current,
     isConnected,
     onlineUsers,
+    joinRoom,
+    leaveRoom,
   };
 
   return (
@@ -177,7 +275,4 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
   );
 };
 
-// ============================================
-// Export context for direct usage
-// ============================================
 export { SocketContext };

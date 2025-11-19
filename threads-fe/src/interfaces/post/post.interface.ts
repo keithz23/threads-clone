@@ -1,11 +1,10 @@
-import type { User } from "../auth/user.inteface";
-
 export interface CreatePostDto {
   content: string;
   parentPostId?: string;
   rootPostId?: string;
   replyPolicy?: string;
   reviewApprove: boolean;
+  hashtags?: string[];
 }
 
 export interface PostMedia {
@@ -20,21 +19,47 @@ export interface PostMedia {
 export interface Post {
   id: string;
   content: string;
-  media: PostMedia[];
-  replyCount: number;
-  repostCount: number;
-  bookmarkCount: number;
-  viewCount: number;
-  likeCount: number;
-  isDeleted: boolean;
-  isPinned: boolean;
-  replyPolicy: string;
-  reviewApprove: boolean;
-  user: User;
-  _count: {
-    like: number;
-    replies: number;
-    reposts: number;
-  };
   createdAt: string;
+  isPinned: boolean;
+  stats: {
+    replies: number;
+    likes: number;
+    reposts: number;
+    bookmarks: number;
+    views: number;
+  };
+  author: {
+    id: string;
+    username: string;
+    displayName: string;
+    bio: string;
+    avatarUrl: string;
+    verified: boolean;
+    followersCount: number;
+    following: Array<{
+      id: string;
+      followerId: string;
+      followingId: string;
+      createdAt: string;
+    }>;
+  };
+  media: Array<{
+    id: string;
+    mediaUrl: string;
+    type: string;
+  }>;
+  isLiked?: boolean;
+  isReposted?: boolean;
+  isBookmarked?: boolean;
+}
+
+export interface PostResponse {
+  success: boolean;
+  data: {
+    posts: Post[];
+    pagination: {
+      hasMore: boolean;
+      nextCursor: string | null;
+    };
+  };
 }

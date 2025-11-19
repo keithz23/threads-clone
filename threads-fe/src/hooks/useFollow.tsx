@@ -24,6 +24,7 @@ export function useFollow() {
       await qc.invalidateQueries({ queryKey: ["suggestions"] });
       await qc.invalidateQueries({ queryKey: ["following"] });
       await qc.invalidateQueries({ queryKey: ["user-profile"] });
+      await qc.invalidateQueries({ queryKey: ["newsfeed"] });
     },
     onError: (err: unknown) => {
       toast.error(extractErrMsg(err));

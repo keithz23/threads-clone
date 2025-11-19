@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CreatePostDto } from './dto/create-post.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { MediaType } from '@prisma/client';
@@ -11,12 +11,17 @@ import {
 } from 'src/common/constants/queue.constant';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { FollowsService } from '../follows/follows.service';
+import { RealTimeGateway } from 'src/realtime/realtime.gateway';
 
 @Injectable()
 export class PostsService {
+  private logger = new Logger(PostsService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
+    private followsService: FollowsService,
+    private realtimeGateway: RealTimeGateway,
     @InjectQueue(QUEUE_NAMES.CLEANUP)
     private cleanupQueue: Queue<CleanupJobData>,
     @InjectQueue(QUEUE_NAMES.IMAGE_PROCESSING)
@@ -28,19 +33,31 @@ export class PostsService {
     createPostDto: CreatePostDto,
     images?: Express.Multer.File[],
   ) {
-    const { content, replyPolicy, parentPostId, reviewApprove, rootPostId } =
-      createPostDto;
+    const {
+      content,
+      replyPolicy,
+      parentPostId,
+      reviewApprove,
+      rootPostId,
+      hashtags,
+    } = createPostDto;
 
-    // Check user
+    // 1. Check user
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        avatarUrl: true,
+      },
     });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    // Upload images SYNC
+    // 2. Upload images SYNC
     let uploadResults: UploadResult[] = [];
     const uploadedKeys: string[] = [];
 
@@ -57,10 +74,11 @@ export class PostsService {
       }
     }
 
-    // Transaction
+    // 3. Transaction
     let post;
     try {
       post = await this.prisma.$transaction(async (tx) => {
+        // Create post
         const created = await tx.post.create({
           data: {
             content: content ?? '',
@@ -85,6 +103,33 @@ export class PostsService {
           });
         }
 
+        // Handle hashtags
+        const normalizedHashtags = this.normalizedHashtags(hashtags ?? []);
+        if (normalizedHashtags.length > 0) {
+          for (const hashtagName of normalizedHashtags) {
+            // Upsert hashtag (create if not exists, get if exists)
+            const hashtag = await tx.hashtag.upsert({
+              where: { name: hashtagName },
+              create: {
+                name: hashtagName,
+                postCount: 1,
+              },
+              update: {
+                postCount: { increment: 1 },
+              },
+            });
+
+            // Create relationship
+            await tx.postHashtag.create({
+              data: {
+                postId: created.id,
+                hashtagId: hashtag.id,
+              },
+            });
+          }
+        }
+
+        // Increment parent reply count
         if (parentPostId) {
           await tx.post.update({
             where: { id: parentPostId },
@@ -101,8 +146,7 @@ export class PostsService {
       throw error;
     }
 
-    // Return với relations
-    return this.prisma.post.findUnique({
+    const fullPost = await this.prisma.post.findUnique({
       where: { id: post.id },
       include: {
         media: { orderBy: { orderIndex: 'asc' } },
@@ -114,8 +158,17 @@ export class PostsService {
             avatarUrl: true,
           },
         },
+        _count: {
+          select: {
+            replies: true,
+            likes: true,
+            reposts: true,
+          },
+        },
       },
     });
+
+    return fullPost;
   }
 
   // Delete post with cleanup job
@@ -328,6 +381,7 @@ export class PostsService {
     cursor?: string,
     filter: string = 'posts',
     limit: number = 20,
+    currentUserId?: string, // Thêm tham số để check interactions
   ) {
     // cap limit
     const take = Math.min(Math.max(limit, 1), 100); // 1..100
@@ -360,25 +414,93 @@ export class PostsService {
       cursor: prismaCursor,
       skip: cursor ? 1 : 0,
       where: whereClause,
-      orderBy: { id: 'desc' },
+      orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
       include: {
         user: {
           select: {
             id: true,
             username: true,
             displayName: true,
+            bio: true,
             avatarUrl: true,
+            followersCount: true,
+            following: true,
           },
         },
-        media: true,
+        media: {
+          orderBy: { createdAt: 'desc' },
+        },
+        ...(currentUserId && {
+          likes: {
+            where: { userId: currentUserId },
+            select: { id: true },
+          },
+          reposts: {
+            where: { userId: currentUserId },
+            select: { id: true },
+          },
+          bookmarks: {
+            where: { userId: currentUserId },
+            select: { id: true },
+          },
+        }),
+        parentPost: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                avatarUrl: true,
+                verified: true,
+                followersCount: true,
+                following: true,
+              },
+            },
+            media: true,
+          },
+        },
       },
     });
 
     const hasMore = posts.length > take;
     const postsToReturn = hasMore ? posts.slice(0, -1) : posts;
 
+    // Format response giống newsfeed
+    const formattedPosts = postsToReturn.map((post) => ({
+      id: post.id,
+      content: post.content,
+      createdAt: post.createdAt,
+      isPinned: post.isPinned,
+
+      // Counters
+      stats: {
+        replies: post.replyCount,
+        likes: post.likeCount,
+        reposts: post.repostCount,
+        bookmarks: post.bookmarkCount,
+        views: post.viewCount,
+      },
+
+      // User info
+      author: post.user,
+
+      // Media
+      media: post.media,
+
+      // Current user interactions
+      ...(currentUserId && {
+        isLiked: post.likes.length > 0,
+        isReposted: post.reposts.length > 0,
+        isBookmarked: post.bookmarks.length > 0,
+      }),
+
+      // Parent post (if reply or quote)
+      parentPost: post.parentPost,
+    }));
+
     return {
-      posts: postsToReturn,
+      posts: formattedPosts,
       pagination: {
         hasMore,
         nextCursor: hasMore
@@ -429,6 +551,16 @@ export class PostsService {
         delay: 1000, // Delay 1s before cleanup
       },
     );
+  }
+
+  private normalizedHashtags(hashtags: string[]) {
+    return Array.isArray(hashtags)
+      ? Array.from(
+          new Set(
+            hashtags.map((h) => String(h).trim().toLowerCase()).filter(Boolean),
+          ),
+        )
+      : [];
   }
 
   private extractKeyFromUrl(url: string): string {

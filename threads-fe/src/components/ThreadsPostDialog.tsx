@@ -390,6 +390,9 @@ export default function ThreadsPostDialog({
       content,
       replyPolicy: replyPolicyName,
       reviewApprove: state.reviewApprove,
+      hashtags: Array.isArray(state.hashtags)
+        ? state.hashtags.map((h) => h.trim()).filter(Boolean)
+        : [],
     };
 
     createPost.mutate(

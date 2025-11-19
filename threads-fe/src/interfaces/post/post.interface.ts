@@ -4,6 +4,7 @@ export interface CreatePostDto {
   rootPostId?: string;
   replyPolicy?: string;
   reviewApprove: boolean;
+  hashtags?: string[];
 }
 
 export interface PostMedia {

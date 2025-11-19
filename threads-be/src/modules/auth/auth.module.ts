@@ -7,7 +7,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { RefreshJwtStrategy } from './strategies/jwt-refresh.strategy';
 import { MailModule } from 'src/mail/mail.module';
-import { RealTimeGateWay } from 'src/realtime/realtime.gateway';
+import { RealTimeGateway } from 'src/realtime/realtime.gateway';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { RealtimeModule } from 'src/realtime/realtime.module';
 import { GoogleStrategy } from './strategies/google.strategy';

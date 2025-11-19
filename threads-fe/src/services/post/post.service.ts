@@ -29,6 +29,12 @@ export const PostService = {
       });
     }
 
+    if (createPostDto.hashtags && createPostDto.hashtags.length > 0) {
+      createPostDto.hashtags.forEach((hashtag) => {
+        form.append("hashtags", hashtag);
+      });
+    }
+
     return instance.post(Post.CREATE_POST, form);
   },
 

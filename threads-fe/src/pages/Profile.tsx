@@ -49,16 +49,6 @@ function normalizeUrl(url?: string) {
   }
 }
 
-function pickToken(userObj: any): string | undefined {
-  return (
-    userObj?.accessToken ||
-    userObj?.token ||
-    userObj?.data?.accessToken ||
-    userObj?.data?.token ||
-    undefined
-  );
-}
-
 export default function Profile() {
   const { user, update } = useAuth();
   const [open, setOpen] = useState(false);
@@ -68,9 +58,6 @@ export default function Profile() {
   const { handle } = useParams();
 
   const me = user?.data;
-  const token = useMemo(() => pickToken(user), [user]);
-  const profileId = me?.id as string | undefined;
-  useProfileRealtime(me, profileId, token);
 
   const targetUsername = useMemo(() => {
     if (!handle) return me?.username; // Own profile
@@ -78,6 +65,8 @@ export default function Profile() {
   }, [handle, me?.username]);
 
   const { profileData } = useUserProfile(targetUsername);
+
+  useProfileRealtime(me, profileData?.id);
 
   const isOwnProfile = useMemo(() => {
     if (!me) return false;

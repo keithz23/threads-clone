@@ -146,8 +146,8 @@ export default function Profile() {
     try {
       const res = await toggleFollow.mutateAsync({ followingId });
 
-      if (res?.data?.isFollowing !== undefined) {
-        setIsFollowing(res.data.isFollowing);
+      if (res?.isFollowing !== undefined) {
+        setIsFollowing(res.isFollowing);
       }
 
       setShowUnfollowDialog(false);

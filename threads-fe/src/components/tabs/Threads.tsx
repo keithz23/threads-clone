@@ -14,6 +14,7 @@ import type { TabProps } from "@/constants/item/profileMenu";
 import type { Group } from "@/interfaces/profile/profile.interface";
 import { useDeletePost } from "@/hooks/usePostActions";
 import { useCallback } from "react";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 export default function Threads({
   posts,
@@ -23,6 +24,8 @@ export default function Threads({
   isLoading,
 }: TabProps) {
   const { delete: deletePost } = useDeletePost();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
+
   const { ref } = useInView({
     onChange: (inView) => {
       if (inView && hasNextPage && !isFetchingNextPage) {
@@ -36,12 +39,21 @@ export default function Threads({
     async (postId: string, actionId: string) => {
       switch (actionId) {
         case "delete":
-          if (!confirm("Delete this post?")) return;
+          const isConfirmed = await confirm({
+            title: "Delete post?",
+            description:
+              "This action cannot be undone. Your post will be permanently deleted.",
+            confirmText: "Delete",
+            cancelText: "Cancel",
+            variant: "destructive",
+          });
+
+          if (!isConfirmed) return;
           await deletePost(postId);
           break;
       }
     },
-    [deletePost]
+    [deletePost, confirm]
   );
 
   const groups: Group[] = [
@@ -55,80 +67,69 @@ export default function Threads({
           label: "Hide like and share counts",
           icon: <HeartOff />,
         },
-        {
-          id: "reply_opts",
-          label: "Reply options",
-          icon: <ChevronRight />,
-        },
+        { id: "reply_opts", label: "Reply options", icon: <ChevronRight /> },
       ],
     },
     {
       id: "secondary",
       items: [
-        {
-          id: "delete",
-          label: "Delete",
-          icon: <Trash className="text-red-500" />,
-          dangerous: true,
-        },
+        { id: "delete", label: "Delete", icon: <Trash className="text-red-500"/>, dangerous: true },
         { id: "copy", label: "Copy link", icon: <Link /> },
       ],
     },
   ];
+
   // Loading state
   if (isLoading) {
     return (
-      <div className="w-full rounded-none md:rounded-3xl mx-auto h-full overflow-y-auto custom-scroll">
-        <div className="space-y-0">
-          {[...Array(5)].map((_, index) => (
-            <PostSkeleton key={index} />
-          ))}
-        </div>
+      <div className="flex flex-col gap-4">
+        {[...Array(5)].map((_, index) => (
+          <PostSkeleton key={index} />
+        ))}
       </div>
     );
   }
 
   if (!posts || posts.length === 0) {
     return (
-      <div className=" rounded-none md:rounded-3xl mx-auto h-full overflow-y-auto custom-scroll">
-        <div className="flex flex-col items-center justify-center p-10 gap-2">
-          <p className="text-gray-700 text-lg font-semibold">No posts yet</p>
-        </div>
+      <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+        <p>No posts yet</p>
       </div>
     );
   }
+
   return (
-    <div className="w-full rounded-none md:rounded-3xl mx-auto h-full overflow-y-auto custom-scroll">
-      {/* Posts */}
-      {posts.map((post: Post) => (
-        <PostProfileCard
-          key={post.id}
-          post={post}
-          groups={groups}
-          onAction={handleAction}
-        />
-      ))}
+    <>
+      <ConfirmDialog />
+      <div className="flex flex-col">
+        {/* Posts */}
+        {posts.map((post: Post) => (
+          <PostProfileCard
+            key={post.id}
+            post={post}
+            groups={groups}
+            onAction={handleAction}
+          />
+        ))}
 
-      {/* Infinite Scroll Trigger */}
-      {hasNextPage && (
-        <div ref={ref} className="py-8 flex justify-center">
-          {isFetchingNextPage ? (
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-gray-500 text-sm">Loading more...</span>
-            </div>
-          ) : (
-            <span className="text-gray-400 text-sm">Scroll to load more</span>
-          )}
-        </div>
-      )}
+        {/* Infinite Scroll Trigger */}
+        {hasNextPage && (
+          <div ref={ref} className="py-4 text-center">
+            {isFetchingNextPage ? (
+              <div className="text-gray-500">Loading more...</div>
+            ) : (
+              <div className="text-gray-400">Scroll to load more</div>
+            )}
+          </div>
+        )}
 
-      {/* End of Feed */}
-      {!hasNextPage && posts.length > 0 && (
-        <div className="py-8 text-center text-gray-500 text-sm border-t border-gray-200">
-          You've reached the end
-        </div>
-      )}
-    </div>
+        {/* End of Feed */}
+        {!hasNextPage && posts.length > 0 && (
+          <div className="py-8 text-center text-gray-400">
+            You've reached the end
+          </div>
+        )}
+      </div>
+    </>
   );
 }

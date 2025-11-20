@@ -1,4 +1,3 @@
-// PostProfileCard.tsx
 import React, { useCallback, useMemo } from "react";
 import { useLikePost, useRepost } from "@/hooks/useNewsfeed";
 import type { Post } from "@/interfaces/post/post.interface";
@@ -20,11 +19,7 @@ interface PostProfileCardProps {
   onAction?: (postId: string, actionId: string) => void;
 }
 
-function PostProfileCardInner({
-  post,
-  groups,
-  onAction,
-}: PostProfileCardProps) {
+function PostProfileCard({ post, groups, onAction }: PostProfileCardProps) {
   const navigate = useNavigate();
   const likeMutation = useLikePost();
   const repostMutation = useRepost();
@@ -67,14 +62,6 @@ function PostProfileCardInner({
       }
     },
     [post.id]
-  );
-
-  const handleProfileClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      navigate(`/profile/${post.author.username}`);
-    },
-    [navigate, post.author.username]
   );
 
   const initials = useMemo(
@@ -130,10 +117,7 @@ function PostProfileCardInner({
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-x-3 flex-1">
           {/* Avatar */}
-          <Avatar
-            className="h-10 w-10 md:h-12 md:w-12 cursor-pointer flex-shrink-0"
-            onClick={handleProfileClick}
-          >
+          <Avatar className="h-10 w-10 md:h-12 md:w-12 cursor-pointer flex-shrink-0">
             <AvatarImage
               src={post.author.avatarUrl}
               alt={post.author.username}
@@ -144,10 +128,7 @@ function PostProfileCardInner({
           <div className="flex-1 min-w-0">
             {/* User Info */}
             <div className="flex items-center gap-x-2 flex-wrap">
-              <span
-                className="font-semibold text-sm hover:underline cursor-pointer"
-                onClick={handleProfileClick}
-              >
+              <span className="font-semibold text-sm hover:underline cursor-pointer">
                 {displayName}
               </span>
 
@@ -157,10 +138,7 @@ function PostProfileCardInner({
                 </span>
               )}
 
-              <span
-                className="text-gray-500 text-sm hover:underline cursor-pointer"
-                onClick={handleProfileClick}
-              >
+              <span className="text-gray-500 text-sm hover:underline cursor-pointer">
                 @{post.author.username}
               </span>
 
@@ -358,7 +336,7 @@ function PostProfileCardInner({
 
 // Export memoized component: compare references for shallow stability
 export default React.memo(
-  PostProfileCardInner,
+  PostProfileCard,
   (prev, next) =>
     prev.post === next.post &&
     prev.groups === next.groups &&

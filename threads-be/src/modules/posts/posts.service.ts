@@ -415,7 +415,7 @@ export class PostsService {
     cursor?: string,
     filter: string = 'posts',
     limit: number = 20,
-    currentUserId?: string, // Thêm tham số để check interactions
+    currentUserId?: string,
   ) {
     // cap limit
     const take = Math.min(Math.max(limit, 1), 100); // 1..100
@@ -500,7 +500,6 @@ export class PostsService {
     const hasMore = posts.length > take;
     const postsToReturn = hasMore ? posts.slice(0, -1) : posts;
 
-    // Format response giống newsfeed
     const formattedPosts = postsToReturn.map((post) => ({
       id: post.id,
       content: post.content,

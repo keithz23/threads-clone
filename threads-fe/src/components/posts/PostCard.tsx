@@ -13,13 +13,21 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { Carousel, CarouselContent, CarouselItem } from "../ui/carousel";
 import { cn } from "@/lib/utils";
-import { Bookmark, Heart, MessageCircle, Repeat, Send } from "lucide-react";
+import {
+  BadgeCheckIcon,
+  Bookmark,
+  Heart,
+  MessageCircle,
+  Repeat,
+  Send,
+} from "lucide-react";
 import { Button } from "../ui/button";
 import { enUS } from "date-fns/locale";
 import type { Group } from "@/interfaces/profile/profile.interface";
 import PostDropdown from "./PostDropdown";
 import ReadMore from "../Readmore";
 import { useAuth } from "@/hooks/useAuth";
+import { Badge } from "../ui/badge";
 
 interface PostCardProps {
   post: Post;
@@ -193,7 +201,14 @@ export default function PostCard({ post, groups }: PostCardProps) {
                 </HoverCardContent>
               </HoverCard>
 
-              {post.author.verified && <span className="text-blue-500">✓</span>}
+              {post.author.verified && (
+                <Badge
+                  variant="secondary"
+                  className="bg-blue-500 text-white dark:bg-blue-600 p-0.5"
+                >
+                  <BadgeCheckIcon />
+                </Badge>
+              )}
 
               <span className="text-gray-500 text-sm">
                 @{post.author.username}

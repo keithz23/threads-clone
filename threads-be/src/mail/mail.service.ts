@@ -20,7 +20,6 @@ export class MailService {
     });
   }
 
-  // Các helper tiện dụng:
   async sendVerifyEmail(to: string, token: string, name?: string) {
     return this.enqueue({
       to,
@@ -54,6 +53,19 @@ export class MailService {
         token,
         username: username || 'there',
         expiresIn,
+      },
+    });
+  }
+
+  async sendEmailNotification(to: string, username: string, email: string) {
+    console.log(`send email`)
+    return this.enqueue({
+      to,
+      type: 'send-notification',
+      subject: 'Your Email is Already Registered',
+      context: {
+        username: username,
+        email: email,
       },
     });
   }

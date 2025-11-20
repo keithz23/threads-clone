@@ -1,4 +1,4 @@
-export type MailType = 'verify' | 'reset' | 'welcome';
+export type MailType = 'verify' | 'reset' | 'welcome' | 'send-notification';
 
 export interface SendMailDto {
   to: string;

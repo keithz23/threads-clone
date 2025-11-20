@@ -324,6 +324,7 @@ export class PostsService {
             avatarUrl: true,
             followersCount: true,
             following: true,
+            verified: true,
           },
         },
         media: {
@@ -459,6 +460,7 @@ export class PostsService {
             avatarUrl: true,
             followersCount: true,
             following: true,
+            verified: true,
           },
         },
         media: {

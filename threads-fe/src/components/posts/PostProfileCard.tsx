@@ -6,12 +6,20 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { Carousel, CarouselContent, CarouselItem } from "../ui/carousel";
 import { cn } from "@/lib/utils";
-import { Bookmark, Heart, MessageCircle, Repeat, Send } from "lucide-react";
+import {
+  BadgeCheckIcon,
+  Bookmark,
+  Heart,
+  MessageCircle,
+  Repeat,
+  Send,
+} from "lucide-react";
 import { enUS } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import type { Group } from "@/interfaces/profile/profile.interface";
 import PostDropdown from "./PostDropdown";
 import ReadMore from "../Readmore";
+import { Badge } from "../ui/badge";
 
 interface PostProfileCardProps {
   post: Post;
@@ -133,9 +141,12 @@ function PostProfileCard({ post, groups, onAction }: PostProfileCardProps) {
               </span>
 
               {post.author.verified && (
-                <span className="text-blue-500" title="Verified">
-                  ✓
-                </span>
+                <Badge
+                  variant="secondary"
+                  className="bg-blue-500 text-white dark:bg-blue-600 p-0.5"
+                >
+                  <BadgeCheckIcon />
+                </Badge>
               )}
 
               <span className="text-gray-500 text-sm hover:underline cursor-pointer">

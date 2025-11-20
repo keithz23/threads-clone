@@ -15,6 +15,7 @@ import {
   Req,
   UnauthorizedException,
   UseGuards,
+  ConflictException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -344,35 +345,56 @@ export class AuthController {
     @Req() req: Request,
     @Ip() ipAddress: string,
     @Headers('user-agent') userAgent: string,
-    @Res({ passthrough: true }) response: Response,
+    @Res() response: Response,
   ) {
     const googleUser = req.user;
-
-    const result = await this.authService.googleLogin(
-      googleUser,
-      ipAddress,
-      userAgent,
-    );
-
-    response.cookie('accessToken', result.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 15 * 60 * 1000,
-      path: '/',
-    });
-
-    response.cookie('refreshToken', result.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/v1/auth',
-    });
-
     const frontendUrl =
       this.configService.get<string>('config.client.url') ||
       'http://localhost:3000';
-    return response.redirect(frontendUrl);
+
+    try {
+      const result = await this.authService.googleLogin(
+        googleUser,
+        ipAddress,
+        userAgent,
+      );
+
+      response.cookie('accessToken', result.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 15 * 60 * 1000,
+        path: '/',
+      });
+
+      response.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/api/v1/auth',
+      });
+
+      response.redirect(frontendUrl);
+    } catch (error) {
+      console.error('Google login error:', error);
+
+      if (error instanceof ConflictException) {
+        const errorMessage = encodeURIComponent(
+          'This email is already registered. Please sign in with your password.',
+        );
+        response.redirect(
+          `${frontendUrl}/login?error=email_exists&message=${errorMessage}`,
+        );
+        return;
+      }
+
+      const errorMessage = encodeURIComponent(
+        'An error occurred during Google login. Please try again.',
+      );
+      response.redirect(
+        `${frontendUrl}/login?error=google_login_failed&message=${errorMessage}`,
+      );
+    }
   }
 }

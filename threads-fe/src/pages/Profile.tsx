@@ -1,4 +1,5 @@
 import {
+  BadgeCheckIcon,
   Bell,
   ChartNoAxesColumn,
   Ellipsis,
@@ -38,6 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUserPosts } from "@/hooks/useNewsfeed";
+import { Badge } from "@/components/ui/badge";
 
 function normalizeUrl(url?: string) {
   if (!url) return "";
@@ -221,9 +223,17 @@ export default function Profile() {
         {/* Name + handle + Avatar */}
         <div className="flex items-start justify-between gap-4 mb-4">
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold text-xl leading-tight break-words">
-              {profile.displayName || profile.username || "Unnamed"}
-            </h2>
+            <div className="flex items-center gap-x-2">
+              <h2 className="font-semibold text-xl leading-tight break-words">
+                {profile.displayName || profile.username || "Unnamed"}
+              </h2>
+              <Badge
+                variant="secondary"
+                className="bg-blue-500 text-white dark:bg-blue-600 p-0.5"
+              >
+                <BadgeCheckIcon />
+              </Badge>
+            </div>
             {profile.username && (
               <div className="text-gray-500 text-sm">@{profile.username}</div>
             )}

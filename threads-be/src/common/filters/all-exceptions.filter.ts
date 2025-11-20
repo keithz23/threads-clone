@@ -14,6 +14,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
+    if (!ctx) {
+      this.logger.error(
+        'Non-HTTP context exception',
+        exception instanceof Error ? exception.stack : String(exception),
+      );
+      return;
+    }
+
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
@@ -31,22 +39,41 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = exception.message;
     }
 
-    const errorResponse = {
+    const errorResponse: Record<string, unknown> = {
       statusCode: status,
       timestamp: new Date().toISOString(),
-      path: request.url,
-      method: request.method,
+      path: request?.url,
+      method: request?.method,
       message,
-      ...(process.env.NODE_ENV === 'development' && {
-        stack: exception instanceof Error ? exception.stack : undefined,
-      }),
     };
 
+    if (process.env.NODE_ENV === 'development' && exception instanceof Error) {
+      errorResponse['stack'] = exception.stack;
+    }
+
     this.logger.error(
-      `${request.method} ${request.url}`,
-      exception instanceof Error ? exception.stack : 'Unknown error',
+      `${request?.method ?? 'N/A'} ${request?.url ?? 'N/A'}`,
+      exception instanceof Error ? exception.stack : String(exception),
     );
 
-    response.status(status).json(errorResponse);
+    if (response && response.headersSent) {
+      this.logger.warn(
+        'Response already sent; the exception filter will NOT send another response.',
+      );
+      return;
+    }
+
+    try {
+      if (response) {
+        response.status(status).json(errorResponse);
+      } else {
+        this.logger.warn('No response object available in exception filter.');
+      }
+    } catch (sendErr) {
+      this.logger.error(
+        'Failed to send error response from exception filter',
+        sendErr as any,
+      );
+    }
   }
 }

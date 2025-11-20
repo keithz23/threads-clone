@@ -383,7 +383,7 @@ export class AuthService {
     await this.prisma.refreshToken.deleteMany({
       where: {
         id: sessionId,
-        userId, // Ensure user can only revoke their own sessions
+        userId,
       },
     });
 
@@ -459,39 +459,62 @@ export class AuthService {
       },
     });
 
-    if (!user) {
-      const baseUsername = googleUser.email.split('@')[0];
-      let username = baseUsername;
-      let counter = 1;
+    if (user && !user.googleId) {
+      await this.mailService.sendEmailNotification(
+        user.email,
+        user.username,
+        user.email,
+      );
 
-      while (await this.prisma.user.findUnique({ where: { username } })) {
-        username = `${baseUsername}${counter}`;
-        counter++;
-      }
-
-      user = await this.prisma.user.create({
-        data: {
-          email: googleUser.email,
-          username: username,
-          fullName: `${googleUser.firstName} ${googleUser.lastName}`.trim(),
-          displayName: `${googleUser.firstName} ${googleUser.lastName}`.trim(),
-          googleId: googleUser.googleId,
-          avatarUrl: googleUser.picture,
-          verified: true,
-        },
+      throw new ConflictException({
+        message:
+          'This email is already registered with a password. Please sign in using your password.',
+        code: 'EMAIL_ALREADY_EXISTS',
+        email: user.email,
       });
-    } else {
-      if (!user.googleId) {
-        user = await this.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            googleId: googleUser.googleId,
-            avatarUrl: user.avatarUrl || googleUser.picture,
-            verified: true,
-          },
-        });
-      }
     }
+
+    if (user && user.googleId) {
+      const tokens = await this.generateTokens(
+        user.id,
+        user.email,
+        ipAddress,
+        userAgent,
+      );
+
+      return {
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          fullName: user.fullName,
+          avatarUrl: user.avatarUrl,
+        },
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      };
+    }
+
+    const baseUsername = googleUser.email.split('@')[0];
+    let username = baseUsername;
+    let counter = 1;
+
+    while (await this.prisma.user.findUnique({ where: { username } })) {
+      username = `${baseUsername}${counter}`;
+      counter++;
+    }
+
+    user = await this.prisma.user.create({
+      data: {
+        email: googleUser.email,
+        username: username,
+        fullName: `${googleUser.firstName} ${googleUser.lastName}`.trim(),
+        displayName: `${googleUser.firstName} ${googleUser.lastName}`.trim(),
+        googleId: googleUser.googleId,
+        avatarUrl: googleUser.picture,
+        verified: true,
+      },
+    });
 
     const tokens = await this.generateTokens(
       user.id,

@@ -46,7 +46,7 @@ export class MailProcessor extends WorkerHost {
     this.loadTemplate('verify');
     this.loadTemplate('reset');
     this.loadTemplate('welcome');
-    this.loadTemplate('email');
+    this.loadTemplate('send-notification');
   }
 
   private loadTemplate(name: string): void {
@@ -97,7 +97,7 @@ export class MailProcessor extends WorkerHost {
         }
         case 'send-notification': {
           subject ||= 'Your Email is Already Registered';
-          html = this.renderTemplate('email', context);
+          html = this.renderTemplate('send-notification', context);
           break;
         }
         case 'reset': {

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { createHash } from 'crypto';
@@ -6,6 +6,7 @@ import { SendMailDto } from './dto/send-mail.dto';
 
 @Injectable()
 export class MailService {
+  private readonly logger = new Logger(MailService.name);
   constructor(@InjectQueue('mail') private readonly mailQueue: Queue) {}
 
   private makeJobId(payload: SendMailDto) {
@@ -14,10 +15,26 @@ export class MailService {
   }
 
   async enqueue(payload: SendMailDto) {
-    return this.mailQueue.add('send', payload, {
-      jobId: this.makeJobId(payload),
-      priority: 1,
-    });
+    try {
+      const opts: any = {
+        priority: 1,
+        removeOnComplete: 1000,
+        removeOnFail: 1000,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 1000 },
+      };
+
+      if (payload.type === 'verify' || payload.type === 'reset') {
+        opts.jobId = this.makeJobId(payload);
+      }
+
+      const job = await this.mailQueue.add('send', payload, opts);
+      this.logger.log(`enqueued job ${job.id} to ${payload.to}`);
+      return job;
+    } catch (err) {
+      this.logger.error('enqueue failed', err);
+      return null;
+    }
   }
 
   async sendVerifyEmail(to: string, token: string, name?: string) {
@@ -58,7 +75,6 @@ export class MailService {
   }
 
   async sendEmailNotification(to: string, username: string, email: string) {
-    console.log(`send email`)
     return this.enqueue({
       to,
       type: 'send-notification',

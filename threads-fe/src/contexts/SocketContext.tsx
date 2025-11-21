@@ -127,7 +127,6 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
 
       // Auto-join profile room if profileId exists
       if (profileId && joinedProfileRef.current !== profileId) {
-        console.log(`🔗 Auto-joining profile room: profile:${profileId}`);
         rtm.emit("room:join", {
           profileId,
           room: `profile:${profileId}`,

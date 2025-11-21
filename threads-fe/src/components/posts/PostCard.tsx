@@ -2,7 +2,7 @@ import { useFollow } from "@/hooks/useFollow";
 import { useLikePost, useRepost } from "@/hooks/useNewsfeed";
 import type { Post } from "@/interfaces/post/post.interface";
 import { formatDistanceToNow } from "date-fns";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import {
@@ -13,12 +13,21 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { Carousel, CarouselContent, CarouselItem } from "../ui/carousel";
 import { cn } from "@/lib/utils";
-import { Bookmark, Heart, MessageCircle, Repeat, Send } from "lucide-react";
+import {
+  BadgeCheckIcon,
+  Bookmark,
+  Heart,
+  MessageCircle,
+  Repeat,
+  Send,
+} from "lucide-react";
 import { Button } from "../ui/button";
 import { enUS } from "date-fns/locale";
 import type { Group } from "@/interfaces/profile/profile.interface";
 import PostDropdown from "./PostDropdown";
 import ReadMore from "../Readmore";
+import { useAuth } from "@/hooks/useAuth";
+import { Badge } from "../ui/badge";
 
 interface PostCardProps {
   post: Post;
@@ -29,30 +38,23 @@ export default function PostCard({ post, groups }: PostCardProps) {
   const navigate = useNavigate();
   const likeMutation = useLikePost();
   const repostMutation = useRepost();
-  const { toggleFollow } = useFollow();
+  const { user: me } = useAuth();
+  const currentUserId = me?.data?.id;
 
-  const initialFollowingState = useMemo(
+  const { toggleFollow } = useFollow(currentUserId);
+
+  const isFollowing = useMemo(
     () =>
-      Array.isArray(post.author.following) && post.author.following.length > 0,
-    [post.author.following]
+      post.author.following?.some((f) => f.followerId === currentUserId) ??
+      false,
+    [post.author.following, currentUserId]
   );
 
-  const [isFollowing, setIsFollowing] = useState<boolean>(
-    initialFollowingState
-  );
-  const [followersCount, setFollowersCount] = useState<number>(
-    post.author.followersCount || 0
+  const followersCount = useMemo(
+    () => post.author.followersCount || 0,
+    [post.author.followersCount]
   );
 
-  useEffect(() => {
-    setIsFollowing(initialFollowingState);
-  }, [initialFollowingState]);
-
-  useEffect(() => {
-    setFollowersCount(post.author.followersCount || 0);
-  }, [post.author.followersCount]);
-
-  // Memoize callbacks
   const handleLike = useCallback(() => {
     likeMutation.mutate(post.id);
   }, [likeMutation, post.id]);
@@ -65,37 +67,9 @@ export default function PostCard({ post, groups }: PostCardProps) {
     navigate(`@${post.author.username}`);
   }, [navigate, post.author.username]);
 
-  const handleToggleFollow = useCallback(
-    async (followingId: string) => {
-      setIsFollowing((prev) => !prev);
-      setFollowersCount((prev) =>
-        isFollowing ? Math.max(0, prev - 1) : prev + 1
-      );
-
-      try {
-        const res = await toggleFollow.mutateAsync({ followingId });
-
-        if (res?.isFollowing !== undefined) {
-          setIsFollowing(res.isFollowing);
-          if (typeof res.followersCount === "number") {
-            setFollowersCount(res.followersCount);
-          } else {
-            setFollowersCount((prev) =>
-              res.isFollowing ? Math.max(0, prev) : Math.max(0, prev)
-            );
-          }
-        } else {
-        }
-      } catch (error) {
-        console.error("Toggle follow failed:", error);
-        setIsFollowing((prev) => !prev);
-        setFollowersCount((prev) =>
-          isFollowing ? prev + 1 : Math.max(0, prev - 1)
-        );
-      }
-    },
-    [toggleFollow, isFollowing]
-  );
+  const handleToggleFollow = useCallback(() => {
+    toggleFollow.mutate({ followingId: post.author.id });
+  }, [toggleFollow, post.author.id]);
 
   const initials = useMemo(
     () => post.author.username.trim().slice(0, 2).toUpperCase() || "??",
@@ -129,13 +103,6 @@ export default function PostCard({ post, groups }: PostCardProps) {
     [post.createdAt]
   );
 
-  const avatarUrl = useMemo(
-    () =>
-      post.author.avatarUrl ||
-      `https://ui-avatars.com/api/?name=${post.author.username}&background=random`,
-    [post.author.avatarUrl, post.author.username]
-  );
-
   return (
     <div className="p-5 gap-x-3 border-b border-gray-200 w-full hover:bg-gray-50/50 transition-colors">
       {/* Pinned Badge */}
@@ -149,7 +116,10 @@ export default function PostCard({ post, groups }: PostCardProps) {
         <div className="flex items-start gap-x-3 flex-1">
           {/* Avatar */}
           <Avatar className="h-10 w-10 md:h-12 md:w-12">
-            <AvatarImage src={avatarUrl} alt={post.author.username} />
+            <AvatarImage
+              src={post.author.avatarUrl}
+              alt={post.author.username}
+            />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
 
@@ -214,7 +184,7 @@ export default function PostCard({ post, groups }: PostCardProps) {
                     </div>
 
                     <Button
-                      onClick={() => handleToggleFollow(post.author.id)}
+                      onClick={handleToggleFollow}
                       variant={isFollowing ? "outline" : "default"}
                       className="w-full cursor-pointer"
                       disabled={toggleFollow.isPending}
@@ -231,7 +201,14 @@ export default function PostCard({ post, groups }: PostCardProps) {
                 </HoverCardContent>
               </HoverCard>
 
-              {post.author.verified && <span className="text-blue-500">✓</span>}
+              {post.author.verified && (
+                <Badge
+                  variant="secondary"
+                  className="bg-blue-500 text-white dark:bg-blue-600 p-0.5"
+                >
+                  <BadgeCheckIcon />
+                </Badge>
+              )}
 
               <span className="text-gray-500 text-sm">
                 @{post.author.username}

@@ -8,7 +8,7 @@ export const Post = {
   TOGGLE_REPOST: (id: string) => `/posts/${encodeURIComponent(id)}/repost`,
   CREATE_POST: "/posts/create-post",
   UPDATE_POST: "/posts/update-post",
-  DELETE_POST: "/post/delete-post",
+  DELETE_POST: (id: string) => `/posts/${encodeURIComponent(id)}/delete`,
 };
 
 export const ReplyPolicy = {

@@ -1,6 +1,4 @@
-import {
-  Logger,
-} from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
@@ -48,6 +46,7 @@ export class MailProcessor extends WorkerHost {
     this.loadTemplate('verify');
     this.loadTemplate('reset');
     this.loadTemplate('welcome');
+    this.loadTemplate('send-notification');
   }
 
   private loadTemplate(name: string): void {
@@ -96,6 +95,11 @@ export class MailProcessor extends WorkerHost {
           });
           break;
         }
+        case 'send-notification': {
+          subject ||= 'Your Email is Already Registered';
+          html = this.renderTemplate('send-notification', context);
+          break;
+        }
         case 'reset': {
           subject ||= 'Reset your password';
           const resetUrl = `${this.appUrl}/reset?token=${encodeURIComponent(
@@ -114,6 +118,8 @@ export class MailProcessor extends WorkerHost {
           break;
         }
       }
+
+      this.logger.debug(type);
 
       const text = this.htmlToTextFallback(html);
 

@@ -32,6 +32,7 @@ export function useNewsfeed(
         limit,
         pageParam
       );
+
       return response.data as PostResponse;
     },
     initialPageParam: undefined as string | undefined,
@@ -41,7 +42,7 @@ export function useNewsfeed(
         : undefined;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 10, // 10 minutes
+    gcTime: 1000 * 30, // 30 seconds
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
   });
@@ -96,7 +97,7 @@ export function useUserPosts(
         : undefined;
     },
     staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 10,
+    gcTime: 1000 * 30,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     enabled: !!username,

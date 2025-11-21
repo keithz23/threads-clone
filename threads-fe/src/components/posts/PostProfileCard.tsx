@@ -1,27 +1,33 @@
+import React, { useCallback, useMemo } from "react";
 import { useLikePost, useRepost } from "@/hooks/useNewsfeed";
 import type { Post } from "@/interfaces/post/post.interface";
 import { formatDistanceToNow } from "date-fns";
-import { useCallback, useMemo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { Carousel, CarouselContent, CarouselItem } from "../ui/carousel";
 import { cn } from "@/lib/utils";
-import { Bookmark, Heart, MessageCircle, Repeat, Send } from "lucide-react";
+import {
+  BadgeCheckIcon,
+  Bookmark,
+  Heart,
+  MessageCircle,
+  Repeat,
+  Send,
+} from "lucide-react";
 import { enUS } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import type { Group } from "@/interfaces/profile/profile.interface";
 import PostDropdown from "./PostDropdown";
 import ReadMore from "../Readmore";
+import { Badge } from "../ui/badge";
 
 interface PostProfileCardProps {
   post: Post;
   groups: Group[];
+  onAction?: (postId: string, actionId: string) => void;
 }
 
-export default function PostProfileCard({
-  post,
-  groups,
-}: PostProfileCardProps) {
+function PostProfileCard({ post, groups, onAction }: PostProfileCardProps) {
   const navigate = useNavigate();
   const likeMutation = useLikePost();
   const repostMutation = useRepost();
@@ -66,16 +72,8 @@ export default function PostProfileCard({
     [post.id]
   );
 
-  const handleProfileClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      navigate(`/profile/${post.author.username}`);
-    },
-    [navigate, post.author.username]
-  );
-
   const initials = useMemo(
-    () => post.author.username.trim().slice(0, 2).toUpperCase() || "??",
+    () => (post.author.username || "").trim().slice(0, 2).toUpperCase() || "??",
     [post.author.username]
   );
 
@@ -106,11 +104,13 @@ export default function PostProfileCard({
     [post.createdAt]
   );
 
-  const avatarUrl = useMemo(
-    () =>
-      post.author.avatarUrl ||
-      `https://ui-avatars.com/api/?name=${post.author.username}&background=random`,
-    [post.author.avatarUrl, post.author.username]
+  // Handler to forward dropdown actions to parent
+  const handleDropdownSelect = useCallback(
+    (itemId: string) => {
+      // stopPropagation is already attempted in PostDropdown, but keep defensive
+      onAction?.(post.id, itemId);
+    },
+    [onAction, post.id]
   );
 
   return (
@@ -125,34 +125,31 @@ export default function PostProfileCard({
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-x-3 flex-1">
           {/* Avatar */}
-          <Avatar
-            className="h-10 w-10 md:h-12 md:w-12 cursor-pointer flex-shrink-0"
-            onClick={handleProfileClick}
-          >
-            <AvatarImage src={avatarUrl} alt={post.author.username} />
+          <Avatar className="h-10 w-10 md:h-12 md:w-12 cursor-pointer flex-shrink-0">
+            <AvatarImage
+              src={post.author.avatarUrl}
+              alt={post.author.username}
+            />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
 
           <div className="flex-1 min-w-0">
             {/* User Info */}
             <div className="flex items-center gap-x-2 flex-wrap">
-              <span
-                className="font-semibold text-sm hover:underline cursor-pointer"
-                onClick={handleProfileClick}
-              >
+              <span className="font-semibold text-sm hover:underline cursor-pointer">
                 {displayName}
               </span>
 
               {post.author.verified && (
-                <span className="text-blue-500" title="Verified">
-                  ✓
-                </span>
+                <Badge
+                  variant="secondary"
+                  className="bg-blue-500 text-white dark:bg-blue-600 p-0.5"
+                >
+                  <BadgeCheckIcon />
+                </Badge>
               )}
 
-              <span
-                className="text-gray-500 text-sm hover:underline cursor-pointer"
-                onClick={handleProfileClick}
-              >
+              <span className="text-gray-500 text-sm hover:underline cursor-pointer">
                 @{post.author.username}
               </span>
 
@@ -198,6 +195,7 @@ export default function PostProfileCard({
                               className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                // open viewer if you have one
                               }}
                             />
                           </div>
@@ -333,8 +331,25 @@ export default function PostProfileCard({
         </div>
 
         {/* More Options */}
-        <PostDropdown groups={groups} />
+        <div className="ml-3">
+          <PostDropdown
+            groups={groups}
+            onSelectItem={(itemId: string) => {
+              // defensive stopPropagation already handled in PostDropdown, but ensure it here too if needed
+              handleDropdownSelect(itemId);
+            }}
+          />
+        </div>
       </div>
     </div>
   );
 }
+
+// Export memoized component: compare references for shallow stability
+export default React.memo(
+  PostProfileCard,
+  (prev, next) =>
+    prev.post === next.post &&
+    prev.groups === next.groups &&
+    prev.onAction === next.onAction
+);

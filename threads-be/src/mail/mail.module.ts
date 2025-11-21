@@ -6,15 +6,6 @@ import { MailProcessor } from './mail.processor';
 
 @Module({
   imports: [
-    BullModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (cfg: ConfigService) => ({
-        connection: {
-          host: cfg.get<string>('config.redis.host'),
-          port: Number(cfg.get('config.redis.port') || 6379),
-        },
-      }),
-    }),
     BullModule.registerQueue({
       name: 'mail',
       defaultJobOptions: {

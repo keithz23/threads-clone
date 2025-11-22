@@ -62,7 +62,7 @@ jobs:
       - run: tar -czf be-build.tar.gz dist package.json package-lock.json ecosystem.config.js
 
       # Upload artifact for the deploy job
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: backend-build
           path: ./threads-be/be-build.tar.gz

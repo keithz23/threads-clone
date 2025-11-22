@@ -110,7 +110,7 @@ jobs:
             tar -xzf /tmp/fe-build.tar.gz -C .
             
             # Reload Frontend
-            pm2 reload ecosystem.config.js --env production --update-env || pm2 start ecosystem.config.js --env production
+            pm2 reload ecosystem.config.cjs --env production --update-env || pm2 start ecosystem.config.cjs --env production
 
             # Cleanup temporary files
             rm /tmp/fe-build.tar.gz

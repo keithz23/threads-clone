@@ -1,0 +1,144 @@
+name: Build & Deploy Full Stack (NestJS + React)
+
+on:
+  push:
+    branches:
+      - feat/add-staging
+
+jobs:
+  # --- JOB 1: BUILD FRONTEND (React) ---
+  build-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./threads-fe
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: ./threads-fe/package-lock.json
+
+      # Install dependencies
+      - run: npm ci
+
+      # Build React application (Generates 'dist' folder)
+      - run: npm run build
+
+      # Compress artifacts: 'dist' folder and PM2 config
+      - run: tar -czf fe-build.tar.gz dist ecosystem.config.js
+
+      # Upload artifact for the deploy job
+      - uses: actions/upload-artifact@v3
+        with:
+          name: frontend-build
+          path: ./threads-fe/fe-build.tar.gz
+          retention-days: 1
+
+  # --- JOB 2: BUILD BACKEND (NestJS) ---
+  build-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./threads-be
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: ./threads-be/package-lock.json
+
+      # Install all dependencies (including devDependencies) for Nest CLI build
+      - run: npm ci
+
+      # Compile TypeScript to JavaScript (Output to 'dist')
+      - run: npm run build
+
+      # Compress artifacts: 'dist', package.json (for prod install), and configs
+      - run: tar -czf be-build.tar.gz dist package.json package-lock.json ecosystem.config.js
+
+      # Upload artifact for the deploy job
+      - uses: actions/upload-artifact@v3
+        with:
+          name: backend-build
+          path: ./threads-be/be-build.tar.gz
+          retention-days: 1
+
+  # --- JOB 3: DEPLOY To EC2 ---
+  deploy:
+    needs: [build-frontend, build-backend] # Wait for build jobs to finish
+    runs-on: ubuntu-latest
+    steps:
+      # Download artifacts from GitHub storage
+      - uses: actions/download-artifact@v3
+        with:
+          name: frontend-build
+          path: ./artifacts/fe
+      - uses: actions/download-artifact@v3
+        with:
+          name: backend-build
+          path: ./artifacts/be
+
+      # Transfer compressed files to EC2 /tmp/ directory
+      - name: Copy Artifacts to EC2
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: "./artifacts/fe/fe-build.tar.gz,./artifacts/be/be-build.tar.gz"
+          target: "/tmp/"
+          strip_components: 2 # Removes ./artifacts/xx path prefix
+
+      # Execute SSH commands to deploy
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script_stop: true # Stop script immediately if any command fails
+          script: |
+            # --- BACKEND (NESTJS) ---
+            echo "Deploying NestJS..."
+            cd /var/www/threads-clone/threads-be
+
+            # Remove old build files (Keep node_modules to speed up install)
+            rm -rf dist ecosystem.config.js package.json
+
+            # Extract new build archive
+            tar -xzf /tmp/be-build.tar.gz -C .
+
+            # Install only production dependencies (lighter & faster)
+            npm install --production
+
+            # Reload application (Zero-downtime) or Start if not running
+            pm2 reload ecosystem.config.js --env production --update-env || pm2 start ecosystem.config.js --env production
+
+            # --- FRONTEND (REACT) ---
+            echo "Deploying React..."
+            cd ../threads-fe
+
+            # Remove old build files
+            rm -rf dist ecosystem.config.js
+
+            # Extract new static files
+            tar -xzf /tmp/fe-build.tar.gz -C .
+
+            # Reload Frontend process
+            pm2 reload ecosystem.config.js --env production --update-env || pm2 start ecosystem.config.js --env production
+
+            # --- CLEANUP ---
+            # Remove temporary archives to free up space
+            rm /tmp/fe-build.tar.gz /tmp/be-build.tar.gz
+
+            # Save PM2 process list (for auto-resurrect on reboot)
+            pm2 save
+
+            echo "ALL DONE! Deployment Successful."

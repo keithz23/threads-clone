@@ -1,4 +1,4 @@
-## Threads Clone
+## Threads Clone [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/keithz23/threads-clone)
 
 **Threads Clone** – a compact full-stack social app inspired by Threads, built with NestJS + Prisma + PostgreSQL + Redis on the backend and React + Vite + TanStack Query + Zustand on the frontend. It supports auth (JWT cookies, refresh), posts/replies/likes, profiles, and a secure password-reset flow.
 

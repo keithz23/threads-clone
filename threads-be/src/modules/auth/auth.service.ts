@@ -20,6 +20,7 @@ import { ERROR_MESSAGES } from 'src/common/constants/error-message';
 import { MailService } from 'src/mail/mail.service';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { PasswordResetToken } from '@prisma/client';
+import { RealTimeGateway } from 'src/realtime/realtime.gateway';
 
 const RESET_TTL_MINUTES = 30;
 const RESET_TOKEN_BYTES = 32; // 256-bit
@@ -31,6 +32,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private mailService: MailService,
+    private RealTimeGateway: RealTimeGateway,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
@@ -98,7 +100,10 @@ export class AuthService {
     }
 
     // Verify password
-    const isPasswordValid = await HashUtil.compare(password, user.passwordHash);
+    const isPasswordValid = await HashUtil.compare(
+      password,
+      user.passwordHash ?? '',
+    );
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
@@ -206,7 +211,10 @@ export class AuthService {
       data: updateDto,
     });
 
-    return this.transformUser(user);
+    const profile = this.transformUser(user);
+    this.RealTimeGateway.emitProfileUpdate(userId, profile);
+
+    return profile;
   }
 
   async changePassword(
@@ -225,7 +233,7 @@ export class AuthService {
     // Verify current password
     const isPasswordValid = await HashUtil.compare(
       currentPassword,
-      user.passwordHash,
+      user.passwordHash ?? '',
     );
 
     if (!isPasswordValid) {
@@ -375,7 +383,7 @@ export class AuthService {
     await this.prisma.refreshToken.deleteMany({
       where: {
         id: sessionId,
-        userId, // Ensure user can only revoke their own sessions
+        userId,
       },
     });
 
@@ -393,7 +401,10 @@ export class AuthService {
       return null;
     }
 
-    const isPasswordValid = await HashUtil.compare(password, user.passwordHash);
+    const isPasswordValid = await HashUtil.compare(
+      password,
+      user.passwordHash ?? '',
+    );
 
     if (!isPasswordValid) {
       return null;
@@ -441,6 +452,90 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
+  async googleLogin(googleUser: any, ipAddress: string, userAgent: string) {
+    let user = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email: googleUser.email }],
+      },
+    });
+
+    if (user && !user.googleId) {
+      await this.mailService.sendEmailNotification(
+        user.email,
+        user.username,
+        user.email,
+      );
+
+      throw new ConflictException({
+        message:
+          'This email is already registered with a password. Please sign in using your password.',
+        code: 'EMAIL_ALREADY_EXISTS',
+        email: user.email,
+      });
+    }
+
+    if (user && user.googleId) {
+      const tokens = await this.generateTokens(
+        user.id,
+        user.email,
+        ipAddress,
+        userAgent,
+      );
+
+      return {
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          fullName: user.fullName,
+          avatarUrl: user.avatarUrl,
+        },
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      };
+    }
+
+    const baseUsername = googleUser.email.split('@')[0];
+    let username = baseUsername;
+    let counter = 1;
+
+    while (await this.prisma.user.findUnique({ where: { username } })) {
+      username = `${baseUsername}${counter}`;
+      counter++;
+    }
+
+    user = await this.prisma.user.create({
+      data: {
+        email: googleUser.email,
+        username: username,
+        fullName: `${googleUser.firstName} ${googleUser.lastName}`.trim(),
+        displayName: `${googleUser.firstName} ${googleUser.lastName}`.trim(),
+        googleId: googleUser.googleId,
+        avatarUrl: googleUser.picture,
+        verified: true,
+      },
+    });
+
+    const tokens = await this.generateTokens(
+      user.id,
+      user.email,
+      ipAddress,
+      userAgent,
+    );
+
+    return {
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        avatarUrl: user.avatarUrl,
+      },
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
+  }
+
   private transformUser(user: any) {
     return {
       id: user.id,
@@ -454,6 +549,9 @@ export class AuthService {
       location: user.location,
       verified: user.verified,
       isPrivate: user.isPrivate,
+      link: user.link,
+      linkTitle: user.linkTitle,
+      interests: user.interests,
       followersCount: user.followersCount,
       followingCount: user.followingCount,
       postsCount: user.postsCount,

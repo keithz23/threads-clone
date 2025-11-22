@@ -42,10 +42,8 @@ export default function Login() {
   };
 
   const loginWithGoogle = () => {
-    const base = import.meta.env.VITE_API_URL || "http://localhost:3000";
-    window.location.href = `${base}/auth/google?redirect=${encodeURIComponent(
-      redirect
-    )}`;
+    const base = import.meta.env.VITE_CALLBACK_URL || "";
+    window.location.href = `${base}?redirect=${encodeURIComponent(redirect)}`;
   };
 
   const toPath = location.pathname + location.search + location.hash;
@@ -162,7 +160,7 @@ export default function Login() {
 
         {/* Login with Google */}
         <div className="m-3">
-          <div className="w-full px-3 py-4 border border-gray-200 rounded-xl">
+          <div className="w-full px-3 py-4 border border-gray-200 rounded-xl active:scale-95">
             <button
               type="button"
               onClick={loginWithGoogle}

@@ -1,4 +1,4 @@
-export interface FileUploadResult {
+export interface UploadResult {
   url: string;
   key: string;
   mimetype: string;

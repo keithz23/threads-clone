@@ -41,8 +41,8 @@ export default function Register() {
   };
 
   const loginWithGoogle = () => {
-    const base = import.meta.env.VITE_API_URL || "http://localhost:3000";
-    window.location.href = `${base}/auth/google`;
+    const base = import.meta.env.VITE_CALLBACK_URL || "";
+    window.location.href = `${base}?redirect=${encodeURIComponent(redirect)}`;
   };
 
   return (
@@ -207,7 +207,7 @@ export default function Register() {
 
         {/* Login with Google */}
         <div className="m-3">
-          <div className="w-full px-3 py-4 border border-gray-200 rounded-xl">
+          <div className="w-full px-3 py-4 border border-gray-200 rounded-xl active:scale-95">
             <button
               type="button"
               onClick={loginWithGoogle}

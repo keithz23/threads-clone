@@ -1,0 +1,117 @@
+name: Hybrid Deploy (FE Build GitHub - BE Build Server)
+
+on:
+  push:
+    branches:
+      - feat/add-staging
+
+jobs:
+  # --- JOB 1: BUILD FRONTEND (Build on GitHub to save EC2 resources) ---
+  build-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./threads-fe
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.11.1"
+          cache: "npm"
+          cache-dependency-path: ./threads-fe/package-lock.json
+      
+      - run: npm ci
+      - run: npm run build
+      - run: tar -czf fe-build.tar.gz dist ecosystem.config.cjs
+      
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: ./threads-fe/fe-build.tar.gz
+          retention-days: 1
+
+  # --- JOB 2: DEPLOY (Backend pull & build, Frontend copy & extract) ---
+  deploy:
+    needs: build-frontend
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Download Frontend build artifact
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: ./artifacts/fe
+
+      - name: Flatten Artifact Path
+        run: mv ./artifacts/fe/fe-build.tar.gz ./fe-build.tar.gz
+
+      # 2. Transfer compressed Frontend file to EC2
+      - name: Copy FE Artifact to EC2
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: "fe-build.tar.gz" # Simple path from root
+          target: "/tmp/"
+
+      # 3. SSH to EC2: Build Backend (on server) & Extract Frontend
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script_stop: true
+          script: |
+            BRANCH="feat/add-staging"
+            
+            # --- BACKEND (NESTJS) - BUILD ON SERVER ---
+            echo "Deploying NestJS (Build on Server)..."
+            cd /var/www/threads-clone
+            
+            # Fetch latest code
+            git fetch origin $BRANCH
+            git reset --hard origin/$BRANCH
+            
+            cd threads-be
+            
+            # Install dependencies (Full install required for Nest CLI build)
+            npm install
+            
+            # IMPORTANT: Generate Prisma Client on server
+            npx prisma generate
+            
+            # Build NestJS directly on server
+            npm run build
+            
+            # Reload Backend
+            pm2 reload ecosystem.config.js --env production --update-env || pm2 start ecosystem.config.js --env production
+
+            # --- FRONTEND (REACT) - FROM ARTIFACT ---
+            echo "Deploying React (From GitHub Artifact)..."
+            
+            # Verify file exists before proceeding (Optional debug step)
+            if [ ! -f /tmp/fe-build.tar.gz ]; then
+              echo "Error: File /tmp/fe-build.tar.gz not found!"
+              ls -R /tmp/
+              exit 1
+            fi
+
+            cd ../threads-fe
+            
+            # Remove old code
+            rm -rf dist ecosystem.config.js
+            
+            # Extract new code from GitHub artifact
+            tar -xzf /tmp/fe-build.tar.gz -C .
+            
+            # Reload Frontend
+            pm2 reload ecosystem.config.cjs --env production --update-env || pm2 start ecosystem.config.cjs --env production
+
+            # Cleanup temporary files
+            rm /tmp/fe-build.tar.gz
+            pm2 save
+            echo "DEPLOY SUCCESS!"

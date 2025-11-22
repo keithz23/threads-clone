@@ -7,67 +7,103 @@ import Loading from "./pages/Loading";
 import Register from "./pages/Register";
 import ResetPassword from "./pages/ResetPassword";
 import Forgot from "./pages/Forgot";
-import { MessageSocketProvider } from "./contexts/MessageSocketContext";
-import { NotificationSocketProvider } from "./contexts/NotificationSocketContext";
 import { useAuth } from "./hooks/useAuth";
+import { SocketProvider } from "./contexts/SocketContext";
 
 function App() {
   const { user } = useAuth();
 
   return (
-    <MessageSocketProvider userId={user?.data?.id}>
-      <NotificationSocketProvider userId={user?.data?.id}>
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
+    <SocketProvider
+      userId={user?.data?.id ?? null}
+      profileId={user?.data?.id ?? null}
+    >
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
 
-          <Route
-            path="/login"
-            element={
-              <PublicRoute>
-                <Login />
-              </PublicRoute>
-            }
-          />
+        <Route
+          path="/search"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
 
-          <Route
-            path="/register"
-            element={
-              <PublicRoute>
-                <Register />
-              </PublicRoute>
-            }
-          />
+        <Route
+          path="/activity"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
 
-          <Route
-            path="/forgot"
-            element={
-              <PublicRoute>
-                <Forgot />
-              </PublicRoute>
-            }
-          />
+        <Route
+          path="/:handle/*"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
 
-          <Route
-            path="/reset"
-            element={
-              <PublicRoute>
-                <ResetPassword />
-              </PublicRoute>
-            }
-          />
+        <Route
+          path="/messages"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
 
-          {/* 404 fallback */}
-          <Route path="*" element={<Loading />} />
-        </Routes>
-      </NotificationSocketProvider>
-    </MessageSocketProvider>
+        <Route
+          path="/login"
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
+        />
+
+        <Route
+          path="/register"
+          element={
+            <PublicRoute>
+              <Register />
+            </PublicRoute>
+          }
+        />
+
+        <Route
+          path="/forgot"
+          element={
+            <PublicRoute>
+              <Forgot />
+            </PublicRoute>
+          }
+        />
+
+        <Route
+          path="/reset"
+          element={
+            <PublicRoute>
+              <ResetPassword />
+            </PublicRoute>
+          }
+        />
+
+        {/* 404 fallback */}
+        <Route path="*" element={<Loading />} />
+      </Routes>
+    </SocketProvider>
   );
 }
 

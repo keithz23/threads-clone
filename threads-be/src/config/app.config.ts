@@ -8,6 +8,17 @@ export default registerAs('config', () => ({
     url: process.env.POSTGRES_URL,
   },
 
+  aws: {
+    accessKey: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    region: process.env.AWS_REGION,
+    bucket: process.env.AWS_BUCKET_NAME,
+  },
+
+  cloudfront: {
+    domain: process.env.CLOUDFRONT_DOMAIN,
+  },
+
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
     port: process.env.REDIS_PORT || 6380,
@@ -43,6 +54,12 @@ export default registerAs('config', () => ({
     from: process.env.MAIL_FROM || '',
     secure: process.env.MAIL_SECURE || '',
     password: process.env.MAIL_PASSWORD || '',
+  },
+
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackUrl: process.env.GOOGLE_CALLBACK_URL,
   },
 
   security: {

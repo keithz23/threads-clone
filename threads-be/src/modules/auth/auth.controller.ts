@@ -14,6 +14,8 @@ import {
   Res,
   Req,
   UnauthorizedException,
+  UseGuards,
+  ConflictException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -35,6 +37,8 @@ import { Request, Response } from 'express';
 import { MailService } from 'src/mail/mail.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { GoogleOAuthGuard } from 'src/common/guards/google-oauth.guard';
+import { ConfigService } from '@nestjs/config';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -42,6 +46,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly mailService: MailService,
+    private readonly configService: ConfigService,
   ) {}
 
   // ============= PUBLIC ROUTES =============
@@ -201,7 +206,7 @@ export class AuthController {
     }
 
     // Clear cookie from client
-    response.clearCookie('acccessToken', { path: '/' });
+    response.clearCookie('accessToken', { path: '/' });
     response.clearCookie('refreshToken', { path: '/api/v1/auth' });
 
     return { message: 'Logged out successfully' };
@@ -322,5 +327,74 @@ export class AuthController {
     @Param('sessionId') sessionId: string,
   ): Promise<{ message: string }> {
     return this.authService.revokeSession(userId, sessionId);
+  }
+
+  @Public()
+  @Get('google')
+  @UseGuards(GoogleOAuthGuard)
+  @ApiOperation({ summary: 'Initiate Google OAuth login' })
+  @ApiResponse({ status: 302, description: 'Redirects to Google login page' })
+  async googleAuth() {}
+
+  @Public()
+  @Get('google/callback')
+  @UseGuards(GoogleOAuthGuard)
+  @ApiOperation({ summary: 'Google OAuth callback' })
+  @ApiResponse({ status: 200, description: 'Login successful' })
+  async googleAuthRedirect(
+    @Req() req: Request,
+    @Ip() ipAddress: string,
+    @Headers('user-agent') userAgent: string,
+    @Res() response: Response,
+  ) {
+    const googleUser = req.user;
+    const frontendUrl =
+      this.configService.get<string>('config.client.url') ||
+      'http://localhost:3000';
+
+    try {
+      const result = await this.authService.googleLogin(
+        googleUser,
+        ipAddress,
+        userAgent,
+      );
+
+      response.cookie('accessToken', result.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 15 * 60 * 1000,
+        path: '/',
+      });
+
+      response.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/api/v1/auth',
+      });
+
+      response.redirect(frontendUrl);
+    } catch (error) {
+      console.error('Google login error:', error);
+
+      if (error instanceof ConflictException) {
+        const errorMessage = encodeURIComponent(
+          'This email is already registered. Please sign in with your password.',
+        );
+        response.redirect(
+          `${frontendUrl}/login?error=email_exists&message=${errorMessage}`,
+        );
+        return;
+      }
+
+      const errorMessage = encodeURIComponent(
+        'An error occurred during Google login. Please try again.',
+      );
+      response.redirect(
+        `${frontendUrl}/login?error=google_login_failed&message=${errorMessage}`,
+      );
+    }
   }
 }

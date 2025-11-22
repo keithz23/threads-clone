@@ -559,44 +559,39 @@ export default function ThreadsPostDialog({
                 </div>
 
                 {state.uploadedImages.length > 0 && (
-                  <Carousel
-                    opts={{ align: "start" }}
-                    className="w-full max-w-sm"
-                  >
-                    <CarouselContent>
+                  <Carousel opts={{ align: "start" }} className="w-full">
+                    <CarouselContent className="-ml-2 md:-ml-4">
                       {state.uploadedImages.map((imageUrl, index) => (
                         <CarouselItem
                           key={index}
-                          className="md:basis-1/2 lg:basis-1/3"
+                          className="pl-2 md:pl-4 basis-1/2 sm:basis-1/3 md:basis-1/3 lg:basis-1/4"
                         >
-                          <div className="p-1">
-                            <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
-                              <img
-                                src={imageUrl}
-                                alt={`item ${index + 1}`}
-                                className="w-full h-full object-cover"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveImage(index)}
-                                aria-label={`Remove image ${index + 1}`}
-                                className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 rounded-full p-1.5 transition-colors"
+                          <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
+                            <img
+                              src={imageUrl}
+                              alt={`item ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImage(index)}
+                              aria-label={`Remove image ${index + 1}`}
+                              className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 rounded-full p-1.5 transition-colors"
+                            >
+                              <svg
+                                className="w-4 h-4 text-white"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
                               >
-                                <svg
-                                  className="w-4 h-4 text-white"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M6 18L18 6M6 6l12 12"
-                                  />
-                                </svg>
-                              </button>
-                            </div>
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M6 18L18 6M6 6l12 12"
+                                />
+                              </svg>
+                            </button>
                           </div>
                         </CarouselItem>
                       ))}

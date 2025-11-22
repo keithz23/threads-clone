@@ -235,6 +235,16 @@ export default function PostCard({ post, groups }: PostCardProps) {
             <div className="mt-2 space-y-3">
               <ReadMore lines={3}>{post.content}</ReadMore>
 
+              {/* Hashtags */}
+              {post.hashtags?.map((hashtag) => (
+                <div
+                  key={hashtag.id}
+                  className="inline-flex items-center px-3 py-1.5 bg-blue-50 text-gray-700 rounded-full text-sm shadow-xs mr-2 mb-2"
+                >
+                  <span>#{hashtag.name}</span>
+                </div>
+              ))}
+
               {/* Media Carousel */}
               {post.media?.length > 0 && (
                 <div className="mt-3">
@@ -246,7 +256,7 @@ export default function PostCard({ post, groups }: PostCardProps) {
                           className={cn(
                             post.media.length === 1
                               ? "basis-full"
-                              : "basis-4/5 md:basis-1/2"
+                              : "basis-5/6 md:basis-1/2"
                           )}
                         >
                           <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100">
@@ -315,8 +325,8 @@ export default function PostCard({ post, groups }: PostCardProps) {
                   className={cn(
                     "cursor-pointer group flex items-center gap-x-1.5 rounded-full transition-all duration-200 px-3 py-2 active:scale-95",
                     post.isLiked
-                      ? "bg-pink-50 hover:bg-pink-100"
-                      : "hover:bg-pink-50"
+                      ? "bg-red-50 hover:bg-red-100"
+                      : "hover:bg-red-50"
                   )}
                 >
                   <Heart
@@ -324,16 +334,16 @@ export default function PostCard({ post, groups }: PostCardProps) {
                     className={cn(
                       "transition-colors",
                       post.isLiked
-                        ? "text-pink-500 fill-pink-500"
-                        : "text-gray-600 group-hover:text-pink-500"
+                        ? "text-red-500 fill-red-500"
+                        : "text-gray-600 group-hover:text-red-500"
                     )}
                   />
                   <span
                     className={cn(
                       "text-sm transition-colors",
                       post.isLiked
-                        ? "text-pink-500"
-                        : "text-gray-600 group-hover:text-pink-500"
+                        ? "text-red-500"
+                        : "text-gray-600 group-hover:text-red-500"
                     )}
                   >
                     {post.stats.likes || 0}

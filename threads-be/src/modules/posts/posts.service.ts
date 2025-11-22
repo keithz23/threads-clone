@@ -330,6 +330,11 @@ export class PostsService {
         media: {
           orderBy: { createdAt: 'desc' },
         },
+        hashtags: {
+          include: {
+            hashtag: true,
+          },
+        },
         ...(userId && {
           likes: {
             where: { userId },
@@ -388,6 +393,13 @@ export class PostsService {
 
       // Media
       media: post.media,
+
+      // Hashtags
+      hashtags:
+        post.hashtags?.map((postHashtag) => ({
+          id: postHashtag.hashtag.id,
+          name: postHashtag.hashtag.name,
+        })) || [],
 
       // Current user interactions
       ...(userId && {

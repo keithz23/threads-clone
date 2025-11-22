@@ -48,6 +48,10 @@ export interface Post {
     mediaUrl: string;
     type: string;
   }>;
+  hashtags: Array<{
+    id: string;
+    name: string;
+  }>;
   isLiked?: boolean;
   isReposted?: boolean;
   isBookmarked?: boolean;

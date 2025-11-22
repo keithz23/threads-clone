@@ -38,7 +38,6 @@ export class CreatePostDto {
 
   @ApiProperty()
   @IsOptional()
-  @IsArray()
   @IsString({ each: true })
   hashtags?: string[];
 }

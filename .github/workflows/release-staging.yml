@@ -31,7 +31,7 @@ jobs:
       - run: tar -czf fe-build.tar.gz dist ecosystem.config.js
 
       # Upload artifact for the deploy job
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: frontend-build
           path: ./threads-fe/fe-build.tar.gz

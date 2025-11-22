@@ -79,6 +79,9 @@ jobs:
             # Install dependencies (Full install required for Nest CLI build)
             npm install
             
+            #### Generate Prisma Client on server
+            npx prisma generate
+            
             # Build NestJS directly on server
             npm run build
             

@@ -23,7 +23,7 @@ jobs:
       
       - run: npm ci
       - run: npm run build
-      - run: tar -czf fe-build.tar.gz dist ecosystem.config.js
+      - run: tar -czf fe-build.tar.gz dist ecosystem.config.cjs
       
       - uses: actions/upload-artifact@v4
         with:
@@ -55,7 +55,6 @@ jobs:
           port: 22
           source: "fe-build.tar.gz" # Simple path from root
           target: "/tmp/"
-          # strip_components removed because we flattened the path locally
 
       # 3. SSH to EC2: Build Backend (on server) & Extract Frontend
       - name: Deploy on EC2

@@ -1,4 +1,3 @@
-// prisma/seed.ts
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -44,7 +43,7 @@ function randomInterests(): string[] {
 }
 
 async function main() {
-  const COUNT = 100; // số user muốn tạo — đổi tuỳ ý
+  const COUNT = 100;
 
   const users: Array<{
     username: string;
